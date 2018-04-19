@@ -48,7 +48,7 @@ options:
       within an OpenStack cloud.
   bridge-mappings:
     type: string
-    default: 'physnet1:br-data'
+    default: 'physnet1:br-ex'
     description: |
       Space-delimited list of ML2 data bridge mappings with format
       <provider>:<bridge>.
