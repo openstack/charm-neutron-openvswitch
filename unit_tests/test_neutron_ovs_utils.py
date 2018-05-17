@@ -55,6 +55,7 @@ TO_PATCH = [
     'PCINetDevices',
     'enable_ipfix',
     'disable_ipfix',
+    'ovs_has_late_dpdk_init',
 ]
 
 head_pkg = 'linux-headers-3.15.0-5-generic'
@@ -92,6 +93,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         self.neutron_plugin_attribute.side_effect = _mock_npa
         self.config.side_effect = self.test_config.get
         self.use_dpdk.return_value = False
+        self.ovs_has_late_dpdk_init.return_value = False
 
     def tearDown(self):
         # Reset cached cache
@@ -470,11 +472,8 @@ class TestNeutronOVSUtils(CharmTestCase):
         ])
         self.add_bridge_port.assert_called_with('br-ex', 'eth0')
 
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_ports')
-    @patch.object(nutils, 'use_dvr')
-    @patch('charmhelpers.contrib.openstack.context.config')
-    def test_configure_ovs_dpdk(self, mock_config, _use_dvr,
-                                _resolve_dpdk_ports):
+    def _run_configure_ovs_dpdk(self, mock_config, _use_dvr,
+                                _resolve_dpdk_ports, _late_init):
         _resolve_dpdk_ports.return_value = OrderedDict([
             ('0000:001c.01', 'br-phynet1'),
             ('0000:001c.02', 'br-phynet2'),
@@ -482,6 +481,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         ])
         _use_dvr.return_value = True
         self.use_dpdk.return_value = True
+        self.ovs_has_late_dpdk_init.return_value = _late_init
         mock_config.side_effect = self.test_config.get
         self.config.side_effect = self.test_config.get
         self.test_config.set('enable-dpdk', True)
@@ -495,11 +495,27 @@ class TestNeutronOVSUtils(CharmTestCase):
             any_order=True
         )
         self.dpdk_add_bridge_port.assert_has_calls([
-            call('br-phynet1', 'dpdk0', port_type='dpdk'),
-            call('br-phynet2', 'dpdk1', port_type='dpdk'),
-            call('br-phynet3', 'dpdk2', port_type='dpdk')],
+            call('br-phynet1', 'dpdk0', '0000:001c.01'),
+            call('br-phynet2', 'dpdk1', '0000:001c.02'),
+            call('br-phynet3', 'dpdk2', '0000:001c.03')],
             any_order=True
         )
+
+    @patch.object(neutron_ovs_context, 'resolve_dpdk_ports')
+    @patch.object(nutils, 'use_dvr')
+    @patch('charmhelpers.contrib.openstack.context.config')
+    def test_configure_ovs_dpdk(self, mock_config, _use_dvr,
+                                _resolve_dpdk_ports):
+        return self._run_configure_ovs_dpdk(mock_config, _use_dvr,
+                                            _resolve_dpdk_ports, False)
+
+    @patch.object(neutron_ovs_context, 'resolve_dpdk_ports')
+    @patch.object(nutils, 'use_dvr')
+    @patch('charmhelpers.contrib.openstack.context.config')
+    def test_configure_ovs_dpdk_late_init(self, mock_config, _use_dvr,
+                                          _resolve_dpdk_ports):
+        return self._run_configure_ovs_dpdk(mock_config, _use_dvr,
+                                            _resolve_dpdk_ports, True)
 
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_enable_ipfix(self, mock_config):

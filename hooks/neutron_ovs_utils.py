@@ -40,6 +40,7 @@ from charmhelpers.contrib.network.ovs import (
     full_restart,
     enable_ipfix,
     disable_ipfix,
+    set_value_Open_vSwitch
 )
 from charmhelpers.core.hookenv import (
     config,
@@ -69,6 +70,7 @@ from charmhelpers.fetch import (
     apt_purge,
     apt_update,
     filter_installed_packages,
+    get_upstream_version
 )
 
 from pci import PCINetDevices
@@ -307,6 +309,8 @@ def resource_map():
         )
         if not use_dpdk():
             drop_config.append(DPDK_INTERFACES)
+        if ovs_has_late_dpdk_init():
+            drop_config.append(OVS_CONF)
     else:
         drop_config.extend([OVS_CONF, DPDK_INTERFACES])
 
@@ -376,6 +380,17 @@ OVS_DEFAULT_BIN = '/usr/lib/openvswitch-switch/ovs-vswitchd'
 def enable_ovs_dpdk():
     '''Enables the DPDK variant of ovs-vswitchd and restarts it'''
     subprocess.check_call(UPDATE_ALTERNATIVES + [OVS_DPDK_BIN])
+    if ovs_has_late_dpdk_init():
+        ctxt = neutron_ovs_context.OVSDPDKDeviceContext()
+        set_value_Open_vSwitch(
+            'other_config:dpdk-init=true')
+        set_value_Open_vSwitch(
+            'other_config:dpdk-lcore-mask={}'.format(ctxt['cpu_mask']))
+        set_value_Open_vSwitch(
+            'other_config:dpdk-socket-mem={}'.format(ctxt['socket_memory']))
+        set_value_Open_vSwitch(
+            'other_config:dpdk-extra=--vhost-owner'
+            ' libvirt-qemu:kvm --vhost-perm 0660')
     if not is_unit_paused_set():
         service_restart('openvswitch-switch')
 
@@ -410,12 +425,12 @@ def configure_ovs():
     else:
         # NOTE: when in dpdk mode, add based on pci bus order
         #       with type 'dpdk'
-        dpdk_bridgemaps = neutron_ovs_context.resolve_dpdk_ports()
+        bridgemaps = neutron_ovs_context.resolve_dpdk_ports()
         device_index = 0
-        for br in dpdk_bridgemaps.values():
+        for pci_address, br in bridgemaps.items():
             add_bridge(br, datapath_type)
             dpdk_add_bridge_port(br, 'dpdk{}'.format(device_index),
-                                 port_type='dpdk')
+                                 pci_address)
             device_index += 1
 
     target = config('ipfix-target')
@@ -558,6 +573,12 @@ def use_dpdk():
     return (cmp_release >= 'mitaka' and config('enable-dpdk'))
 
 
+def ovs_has_late_dpdk_init():
+    ''' OVS 2.6.0 introduces late initialization '''
+    ovs_version = get_upstream_version("openvswitch-switch")
+    return ovs_version >= '2.6.0'
+
+
 def enable_sriov():
     '''Determine whether SR-IOV is enabled and supported'''
     cmp_release = CompareOpenStackReleases(
@@ -566,13 +587,19 @@ def enable_sriov():
 
 
 # TODO: update into charm-helpers to add port_type parameter
-def dpdk_add_bridge_port(name, port, promisc=False, port_type=None):
+def dpdk_add_bridge_port(name, port, pci_address=None):
     ''' Add a port to the named openvswitch bridge '''
     # log('Adding port {} to bridge {}'.format(port, name))
-    cmd = ["ovs-vsctl", "--", "--may-exist", "add-port", name, port]
-    if port_type:
-        cmd += ['--', 'set', 'Interface', port,
-                'type={}'.format(port_type)]
+    if ovs_has_late_dpdk_init():
+        cmd = ["ovs-vsctl",
+               "add-port", name, port, "--",
+               "set", "Interface", port,
+               "type=dpdk",
+               "options:dpdk-devargs={}".format(pci_address)]
+    else:
+        cmd = ["ovs-vsctl", "--",
+               "--may-exist", "add-port", name, port,
+               "--", "set", "Interface", port, "type=dpdk"]
     subprocess.check_call(cmd)
 
 
