@@ -151,6 +151,7 @@ options:
       .
         vfio-pci
         uio_pci_generic
+        none
       .
       Only used when DPDK is enabled.
   enable-sriov:

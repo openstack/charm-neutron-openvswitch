@@ -644,6 +644,15 @@ class TestDPDKDeviceContext(CharmTestCase):
         })
         self.config.assert_called_with('dpdk-driver')
 
+    def test_context_none_driver(self):
+        self.test_config.set('dpdk-driver', 'none')
+        self.resolve_dpdk_bridges.return_value = [
+            '0000:00:1c.0',
+            '0000:00:1d.0'
+        ]
+        self.assertEqual(self.test_context(), {})
+        self.config.assert_called_with('dpdk-driver')
+
 
 class TestRemoteRestartContext(CharmTestCase):
 

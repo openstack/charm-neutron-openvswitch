@@ -301,8 +301,11 @@ def numa_node_cores():
 class DPDKDeviceContext(OSContextGenerator):
 
     def __call__(self):
+        driver = config('dpdk-driver')
+        if driver == 'none':
+            return {}
         return {'devices': resolve_dpdk_ports(),
-                'driver': config('dpdk-driver')}
+                'driver': driver}
 
 
 class OVSDPDKDeviceContext(OSContextGenerator):
