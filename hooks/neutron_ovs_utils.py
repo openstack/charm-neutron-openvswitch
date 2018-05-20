@@ -425,13 +425,32 @@ def configure_ovs():
     else:
         # NOTE: when in dpdk mode, add based on pci bus order
         #       with type 'dpdk'
-        bridgemaps = neutron_ovs_context.resolve_dpdk_ports()
+        bridgemaps = neutron_ovs_context.resolve_dpdk_bridges()
+        bondmaps = neutron_ovs_context.resolve_dpdk_bonds()
         device_index = 0
+        br_bonds = {}
         for pci_address, br in bridgemaps.items():
             add_bridge(br, datapath_type)
-            dpdk_add_bridge_port(br, 'dpdk{}'.format(device_index),
-                                 pci_address)
+            portname = 'dpdk{}'.format(device_index)
+            if pci_address in bondmaps:
+                # Create a br-bond-(portnames,pci_addresses)
+                # hierarchy structure to describe the connections
+                # between the elements
+                bond = bondmaps[pci_address]
+                if br not in br_bonds:
+                    br_bonds[br] = {}
+                if bond not in br_bonds[br]:
+                    br_bonds[br][bond] = ([], [])
+                br_bonds[br][bond][0].append(portname)
+                br_bonds[br][bond][1].append(pci_address)
+            else:
+                dpdk_add_bridge_port(br, portname,
+                                     pci_address)
             device_index += 1
+
+        for br, bonds in br_bonds.items():
+            for bond, t in bonds.items():
+                dpdk_add_bridge_bond(br, bond, *t)
 
     target = config('ipfix-target')
     bridges = [INT_BRIDGE, EXT_BRIDGE]
@@ -600,6 +619,24 @@ def dpdk_add_bridge_port(name, port, pci_address=None):
         cmd = ["ovs-vsctl", "--",
                "--may-exist", "add-port", name, port,
                "--", "set", "Interface", port, "type=dpdk"]
+    subprocess.check_call(cmd)
+
+
+def dpdk_add_bridge_bond(bridge_name, bond_name, port_list, pci_address_list):
+    ''' Add ports to a bond attached to the named openvswitch bridge '''
+    if ovs_has_late_dpdk_init():
+        cmd = ["ovs-vsctl",
+               "add-bond", bridge_name, bond_name]
+        for port in port_list:
+            cmd.append(port)
+        id = 0
+        for pci_address in pci_address_list:
+            cmd.extend(["--", "set", "Interface", port_list[id],
+                        "type=dpdk",
+                        "options:dpdk-devargs={}".format(pci_address)])
+            id += 1
+    else:
+        raise Exception("Bond's not supported for OVS pre-2.6.0")
     subprocess.check_call(cmd)
 
 

@@ -37,6 +37,15 @@ options:
       Port can also be a linuxbridge bridge. In this case a veth pair will be
       created, the ovs bridge and the linuxbridge bridge will be connected. It
       can be useful to connect the ovs bridge to juju bridge.
+  bond-mappings:
+    type: string
+    default:
+    description: |
+      Space-delimited list of bond:port mappings. Ports will be added to their
+      corresponding bond, which in turn will be put into the bridge as
+      specified in data-port.
+      .
+      This option is supported only when enable-dpdk is true.
   disable-security-groups:
     type: boolean
     default: false
