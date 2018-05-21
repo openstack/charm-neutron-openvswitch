@@ -134,6 +134,16 @@ def set_manager(manager):
                            'ssl:{}'.format(manager)])
 
 
+def set_value(table, arg1, arg2):
+    ''' Set the controller for the local openvswitch '''
+    log('Setting table {} {} {}'.format(table, arg1, arg2))
+    subprocess.check_call(['ovs-vsctl', 'set', table, arg1, arg2])
+
+
+def set_value_Open_vSwitch(arg):
+    return set_value('Open_vSwitch', '.', arg)
+
+
 CERT_PATH = '/etc/openvswitch/ovsclient-cert.pem'
 
 

@@ -501,6 +501,11 @@ DPDK_DATA_PORTS = (
     "br-phynet1:fe:16:41:df:23:fd "
     "br-phynet2:fe:f2:d0:45:dc:66"
 )
+BOND_MAPPINGS = (
+    "bond0:fe:16:41:df:23:fe "
+    "bond0:fe:16:41:df:23:fd "
+    "bond1:fe:f2:d0:45:dc:66"
+)
 PCI_DEVICE_MAP = {
     'fe:16:41:df:23:fd': MockPCIDevice('0000:00:1c.0'),
     'fe:16:41:df:23:fe': MockPCIDevice('0000:00:1d.0'),
@@ -534,20 +539,29 @@ class TestDPDKUtils(CharmTestCase):
         self.glob.glob.assert_called_with('/sys/devices/system/node/node*')
         _parse_cpu_list.assert_called_with(TEST_CPULIST_1)
 
-    def test_resolve_dpdk_ports(self):
+    def test_resolve_dpdk_bridges(self):
         self.test_config.set('data-port', DPDK_DATA_PORTS)
         _pci_devices = Mock()
         _pci_devices.get_device_from_mac.side_effect = PCI_DEVICE_MAP.get
         self.PCINetDevices.return_value = _pci_devices
-        self.assertEqual(context.resolve_dpdk_ports(),
+        self.assertEqual(context.resolve_dpdk_bridges(),
                          {'0000:00:1c.0': 'br-phynet1',
                           '0000:00:1d.0': 'br-phynet3'})
+
+    def test_resolve_dpdk_bonds(self):
+        self.test_config.set('bond-mappings', BOND_MAPPINGS)
+        _pci_devices = Mock()
+        _pci_devices.get_device_from_mac.side_effect = PCI_DEVICE_MAP.get
+        self.PCINetDevices.return_value = _pci_devices
+        self.assertEqual(context.resolve_dpdk_bonds(),
+                         {'0000:00:1c.0': 'bond0',
+                          '0000:00:1d.0': 'bond0'})
 
 
 DPDK_PATCH = [
     'parse_cpu_list',
     'numa_node_cores',
-    'resolve_dpdk_ports',
+    'resolve_dpdk_bridges',
     'glob',
 ]
 
@@ -572,7 +586,7 @@ class TestOVSDPDKDeviceContext(CharmTestCase):
 
     def test_device_whitelist(self):
         '''Test device whitelist generation'''
-        self.resolve_dpdk_ports.return_value = [
+        self.resolve_dpdk_bridges.return_value = [
             '0000:00:1c.0',
             '0000:00:1d.0'
         ]
@@ -606,12 +620,12 @@ class TestOVSDPDKDeviceContext(CharmTestCase):
 
     def test_context_no_devices(self):
         '''Ensure that DPDK is disable when no devices detected'''
-        self.resolve_dpdk_ports.return_value = []
+        self.resolve_dpdk_bridges.return_value = []
         self.assertEqual(self.test_context(), {})
 
     def test_context_devices(self):
         '''Ensure DPDK is enabled when devices are detected'''
-        self.resolve_dpdk_ports.return_value = [
+        self.resolve_dpdk_bridges.return_value = [
             '0000:00:1c.0',
             '0000:00:1d.0'
         ]
@@ -634,7 +648,7 @@ class TestDPDKDeviceContext(CharmTestCase):
         self.test_context = context.DPDKDeviceContext()
 
     def test_context(self):
-        self.resolve_dpdk_ports.return_value = [
+        self.resolve_dpdk_bridges.return_value = [
             '0000:00:1c.0',
             '0000:00:1d.0'
         ]
@@ -642,6 +656,15 @@ class TestDPDKDeviceContext(CharmTestCase):
             'devices': ['0000:00:1c.0', '0000:00:1d.0'],
             'driver': 'uio_pci_generic'
         })
+        self.config.assert_called_with('dpdk-driver')
+
+    def test_context_none_driver(self):
+        self.test_config.set('dpdk-driver', 'none')
+        self.resolve_dpdk_bridges.return_value = [
+            '0000:00:1c.0',
+            '0000:00:1d.0'
+        ]
+        self.assertEqual(self.test_context(), {})
         self.config.assert_called_with('dpdk-driver')
 
 

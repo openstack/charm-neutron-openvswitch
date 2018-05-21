@@ -240,7 +240,7 @@ class L3AgentContext(OSContextGenerator):
         return ctxt
 
 
-def resolve_dpdk_ports():
+def resolve_dpdk_bridges():
     '''
     Resolve local PCI devices from configured mac addresses
     using the data-port configuration option
@@ -265,6 +265,35 @@ def resolve_dpdk_ports():
             pci_address = db.get(mac)
             if pci_address:
                 resolved_devices[pci_address] = bridge
+
+    return resolved_devices
+
+
+def resolve_dpdk_bonds():
+    '''
+    Resolve local PCI devices from configured mac addresses
+    using the data-port configuration option
+
+    @return: OrderDict indexed by PCI device address.
+    '''
+    bonds = config('bond-mappings')
+    devices = PCINetDevices()
+    resolved_devices = collections.OrderedDict()
+    db = kv()
+    if bonds:
+        # NOTE: ordered dict of format {[mac]: bond}
+        bondmap = parse_data_port_mappings(bonds)
+        for mac, bond in bondmap.items():
+            pcidev = devices.get_device_from_mac(mac)
+            if pcidev:
+                # NOTE: store mac->pci allocation as post binding
+                #       to dpdk, it disappears from PCIDevices.
+                db.set(mac, pcidev.pci_address)
+                db.flush()
+
+            pci_address = db.get(mac)
+            if pci_address:
+                resolved_devices[pci_address] = bond
 
     return resolved_devices
 
@@ -301,8 +330,11 @@ def numa_node_cores():
 class DPDKDeviceContext(OSContextGenerator):
 
     def __call__(self):
-        return {'devices': resolve_dpdk_ports(),
-                'driver': config('dpdk-driver')}
+        driver = config('dpdk-driver')
+        if driver == 'none':
+            return {}
+        return {'devices': resolve_dpdk_bridges(),
+                'driver': driver}
 
 
 class OVSDPDKDeviceContext(OSContextGenerator):
@@ -337,7 +369,7 @@ class OVSDPDKDeviceContext(OSContextGenerator):
         '''Formatted list of devices to whitelist for dpdk'''
         _flag = '-w {device}'
         whitelist = []
-        for device in resolve_dpdk_ports():
+        for device in resolve_dpdk_bridges():
             whitelist.append(_flag.format(device=device))
         return ' '.join(whitelist)
 
