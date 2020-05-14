@@ -70,6 +70,7 @@ TO_PATCH = [
     'is_container',
     'is_unit_paused_set',
     'deferrable_svc_restart',
+    'log',
 ]
 
 head_pkg = 'linux-headers-3.15.0-5-generic'
@@ -660,8 +661,22 @@ class TestNeutronOVSUtils(CharmTestCase):
         _nics.return_value = ['br-juju']
         self.add_bridge.reset_mock()
         self.add_bridge_port.reset_mock()
+        expected_ifdata = {
+            'external-ids': {
+                'charm-neutron-openvswitch': 'br-foo'
+            }
+        }
         nutils.configure_ovs()
-        self.assertTrue(self.add_ovsbridge_linuxbridge.called)
+        self.add_ovsbridge_linuxbridge.assert_called_once_with(
+            'br-foo',
+            'br-juju',
+            ifdata=expected_ifdata,
+            portdata=expected_ifdata,
+        )
+        self.log.assert_called_with(
+            'br-juju is a Linux bridge: using Linux bridges in the data-port '
+            'config is deprecated for removal after 21.10 release of OpenStack'
+            ' charms.', level='WARNING')
 
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
