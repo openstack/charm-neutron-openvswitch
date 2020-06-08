@@ -15,7 +15,7 @@
 import hashlib
 import subprocess
 
-from mock import MagicMock, patch, call, ANY
+from unittest.mock import MagicMock, patch, call, ANY
 from collections import OrderedDict
 import charmhelpers.contrib.openstack.templating as templating
 

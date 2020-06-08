@@ -14,7 +14,7 @@
 
 from test_utils import CharmTestCase
 from test_utils import patch_open
-from mock import patch
+from unittest.mock import patch
 import neutron_ovs_context as context
 import charmhelpers
 

@@ -21,7 +21,7 @@ from test_pci_helper import (
     mocked_islink,
     mocked_realpath,
 )
-from mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 import pci
 
 TO_PATCH = [

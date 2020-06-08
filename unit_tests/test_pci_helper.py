@@ -16,7 +16,7 @@
 
 import pci
 from test_utils import patch_open
-from mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 import pci_responses
 import os
 
