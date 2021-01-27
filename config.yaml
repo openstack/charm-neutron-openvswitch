@@ -445,3 +445,9 @@ options:
       in an expected data plane outage while the service restarts.
       .
       (Available from Mitaka)
+  enable-auto-restarts:
+    type: boolean
+    default: True
+    description: |
+      Allow the charm and packages to restart services automatically when
+      required.

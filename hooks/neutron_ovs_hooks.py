@@ -22,12 +22,16 @@ from copy import deepcopy
 from charmhelpers.contrib.openstack import context as os_context
 
 from charmhelpers.contrib.openstack.utils import (
-    pausable_restart_on_change as restart_on_change,
+    os_restart_on_change as restart_on_change,
     series_upgrade_prepare,
     series_upgrade_complete,
-    is_unit_paused_set,
+    is_hook_allowed,
     CompareOpenStackReleases,
     os_release,
+)
+
+from charmhelpers.contrib.openstack.deferred_events import (
+    configure_deferred_restarts,
 )
 
 from charmhelpers.core.hookenv import (
@@ -72,6 +76,7 @@ from neutron_ovs_utils import (
     determine_purge_packages,
     purge_sriov_systemd_files,
     use_fqdn_hint,
+    deferrable_services,
 )
 
 hooks = Hooks()
@@ -127,11 +132,16 @@ def upgrade_charm():
 @restart_on_change({cfg: services
                     for cfg, services in restart_map().items()
                     if cfg != OVS_DEFAULT})
-def config_changed():
+def config_changed(check_deferred_restarts=True):
+    configure_deferred_restarts(deferrable_services())
+    # policy_rcd.remove_policy_file()
     # if we are paused, delay doing any config changed hooks.
     # It is forced on the resume.
-    if is_unit_paused_set():
-        log("Unit is pause or upgrading. Skipping config_changed", "WARN")
+    allowed, reason = is_hook_allowed(
+        'config-changed',
+        check_deferred_restarts=check_deferred_restarts)
+    if not allowed:
+        log(reason, "WARN")
         return
 
     install_packages()
@@ -257,7 +267,8 @@ def amqp_changed():
 
 
 @hooks.hook('neutron-control-relation-changed')
-@restart_on_change(restart_map(), stopstart=True)
+@restart_on_change(restart_map(),
+                   stopstart=True)
 def restart_check():
     CONFIGS.write_all()
 

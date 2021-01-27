@@ -69,6 +69,7 @@ TO_PATCH = [
     'modprobe',
     'is_container',
     'is_unit_paused_set',
+    'deferrable_svc_restart',
 ]
 
 head_pkg = 'linux-headers-3.15.0-5-generic'
@@ -1062,7 +1063,8 @@ class TestNeutronOVSUtils(CharmTestCase):
             DummyContext(return_value={'shared_secret': 'supersecret'})
         self.assertEqual(nutils.get_shared_secret(), 'supersecret')
 
-    def test_assess_status(self):
+    @patch.object(nutils, 'check_restart_timestamps')
+    def test_assess_status(self, mock_check_restart_timestamps):
         with patch.object(nutils, 'assess_status_func') as asf:
             callee = MagicMock()
             asf.return_value = callee
@@ -1072,6 +1074,7 @@ class TestNeutronOVSUtils(CharmTestCase):
             self.os_application_version_set.assert_called_with(
                 nutils.VERSION_PACKAGE
             )
+            mock_check_restart_timestamps.assert_called_once_with()
 
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_check_ext_port_data_port_config(self, mock_config):
@@ -1196,7 +1199,9 @@ class TestNeutronOVSUtils(CharmTestCase):
         _check_call.assert_called_once_with(
             nutils.UPDATE_ALTERNATIVES + [nutils.OVS_DPDK_BIN]
         )
-        self.service_restart.assert_called_with('openvswitch-switch')
+        self.deferrable_svc_restart.assert_called_with(
+            'openvswitch-switch',
+            restart_reason='DPDK Config changed')
 
     @patch.object(nutils, 'is_unit_paused_set')
     @patch.object(nutils.subprocess, 'check_call')
@@ -1229,7 +1234,9 @@ class TestNeutronOVSUtils(CharmTestCase):
         _check_call.assert_called_once_with(
             nutils.UPDATE_ALTERNATIVES + [nutils.OVS_DPDK_BIN]
         )
-        self.service_restart.assert_called_with('openvswitch-switch')
+        self.deferrable_svc_restart.assert_called_with(
+            'openvswitch-switch',
+            restart_reason='DPDK Config changed')
 
     @patch.object(nutils.context, 'NeutronAPIContext')
     @patch.object(nutils, 'is_container')
@@ -1298,7 +1305,9 @@ class TestNeutronOVSUtils(CharmTestCase):
             call('other_config:hw-offload', 'true'),
             call('other_config:max-idle', '30000'),
         ])
-        self.service_restart.assert_called_once_with('openvswitch-switch')
+        self.deferrable_svc_restart.assert_called_once_with(
+            'openvswitch-switch',
+            restart_reason='Hardware offload config changed')
 
     @patch.object(nutils, 'set_Open_vSwitch_column_value')
     def test_enable_hw_offload_unit_paused(self, _ovs_set):

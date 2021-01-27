@@ -32,6 +32,10 @@ from charmhelpers.contrib.openstack.utils import (
     os_release,
     sequence_status_check_functions,
 )
+from charmhelpers.contrib.openstack.deferred_events import (
+    deferrable_svc_restart,
+    check_restart_timestamps,
+)
 from charmhelpers.core.unitdata import kv
 from collections import OrderedDict
 import neutron_ovs_context
@@ -482,6 +486,28 @@ def services(exclude_services=None):
     return list(s_set)
 
 
+def deferrable_services():
+    """Services which should be stopped from restarting.
+
+    All services from services() are deferable. But the charm may
+    install a package which install a service that the charm does not add
+    to its restart_map. In that case it will be missing from
+    self.services. However one of the jobs of deferred events is to ensure
+    that packages updates outside of charms also do not restart services.
+    To ensure there is a complete list take the services from services()
+    and also add in a known list of networking services.
+
+    NOTE: It does not matter if one of the services in the list is not
+    installed on the system.
+
+    """
+
+    _svcs = services()
+    _svcs.extend(['ovs-vswitchd', 'ovsdb-server', 'ovs-vswitchd-dpdk',
+                  'openvswitch-switch'])
+    return list(set(_svcs))
+
+
 def determine_ports():
     """Assemble a list of API ports for services the charm is managing
 
@@ -558,7 +584,9 @@ def enable_ovs_dpdk():
             )
     if ((values_changed and any(values_changed)) and
             not is_unit_paused_set()):
-        service_restart('openvswitch-switch')
+        deferrable_svc_restart(
+            'openvswitch-switch',
+            restart_reason='DPDK Config changed')
 
 
 def enable_hw_offload():
@@ -571,7 +599,9 @@ def enable_hw_offload():
     ]
     if ((values_changed and any(values_changed)) and
             not is_unit_paused_set()):
-        service_restart('openvswitch-switch')
+        deferrable_svc_restart(
+            'openvswitch-switch',
+            restart_reason='Hardware offload config changed')
 
 
 def install_tmpfilesd():
@@ -908,6 +938,7 @@ def assess_status(configs):
     @param configs: a templating.OSConfigRenderer() object
     @returns None - this function is executed for its side-effect
     """
+    check_restart_timestamps()
     exclude_services = []
     if is_unit_paused_set():
         exclude_services = ['openvswitch-switch']

@@ -19,7 +19,7 @@ from test_utils import CharmTestCase
 
 with patch('neutron_ovs_utils.register_configs') as configs:
     configs.return_value = 'test-config'
-    import pause_resume as actions
+    import os_actions as actions
 
 
 class PauseTestCase(CharmTestCase):

@@ -52,6 +52,7 @@ TO_PATCH = [
     'purge_packages',
     'determine_purge_packages',
     'is_container',
+    'is_hook_allowed',
 ]
 NEUTRON_CONF_DIR = "/etc/neutron"
 
@@ -66,6 +67,7 @@ class NeutronOVSHooksTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.is_container.return_value = False
         hooks.hooks._config_save = False
+        self.is_hook_allowed.return_value = (True, '')
 
     def _call_hook(self, hookname):
         hooks.hooks.execute([
@@ -117,13 +119,25 @@ class NeutronOVSHooksTests(CharmTestCase):
                         self.CONFIGS.write.assert_not_called()
                     self.assertEqual(0, mock_restart.call_count)
 
-    def test_config_changed_dvr(self):
+    @patch.object(hooks, 'deferrable_services')
+    @patch.object(hooks, 'configure_deferred_restarts')
+    def test_config_changed_dvr(self, mock_configure_deferred_restarts,
+                                mock_deferrable_services):
+        mock_deferrable_services.return_value = ['ovs-vswitchd']
         self._call_hook('config-changed')
         self.install_packages.assert_called_with()
         self.assertTrue(self.CONFIGS.write_all.called)
         self.configure_ovs.assert_called_with()
+        mock_deferrable_services.assert_called_once_with()
+        mock_configure_deferred_restarts.assert_called_once_with(
+            ['ovs-vswitchd'])
 
-    def test_config_changed_sysctl_overrides(self):
+    @patch.object(hooks, 'deferrable_services')
+    @patch.object(hooks, 'configure_deferred_restarts')
+    def test_config_changed_sysctl_overrides(self,
+                                             mock_configure_deferred_restarts,
+                                             mock_deferrable_services):
+        mock_deferrable_services.return_value = ['ovs-vswitchd']
         self.test_config.set(
             'sysctl',
             '{foo : bar}'
@@ -132,8 +146,15 @@ class NeutronOVSHooksTests(CharmTestCase):
         self.create_sysctl.assert_called_with(
             '{foo : bar}',
             '/etc/sysctl.d/50-openvswitch.conf')
+        mock_deferrable_services.assert_called_once_with()
+        mock_configure_deferred_restarts.assert_called_once_with(
+            ['ovs-vswitchd'])
 
-    def test_config_changed_sysctl_container(self):
+    @patch.object(hooks, 'deferrable_services')
+    @patch.object(hooks, 'configure_deferred_restarts')
+    def test_config_changed_sysctl_container(self,
+                                             mock_configure_deferred_restarts,
+                                             mock_deferrable_services):
         self.test_config.set(
             'sysctl',
             '{foo : bar}'
@@ -142,8 +163,13 @@ class NeutronOVSHooksTests(CharmTestCase):
         self._call_hook('config-changed')
         self.create_sysctl.assert_not_called()
 
+    @patch.object(hooks, 'deferrable_services')
+    @patch.object(hooks, 'configure_deferred_restarts')
     @patch.object(hooks, 'neutron_plugin_joined')
-    def test_config_changed_rocky_upgrade(self, _plugin_joined):
+    def test_config_changed_rocky_upgrade(self,
+                                          _plugin_joined,
+                                          mock_configure_deferred_restarts,
+                                          mock_deferrable_services):
         self.determine_purge_packages.return_value = ['python-neutron']
         self.relation_ids.return_value = ['neutron-plugin:42']
         self._call_hook('config-changed')

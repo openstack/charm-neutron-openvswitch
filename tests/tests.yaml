@@ -55,11 +55,13 @@ target_deploy_status:
     workload-status-message: Vault needs to be initialized
 
 tests:
+  - zaza.openstack.charm_tests.neutron.tests.NeutronOVSDeferredRestartTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOpenvSwitchTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
   - migrate-ovn:
+    - zaza.openstack.charm_tests.neutron.tests.NeutronOVSDeferredRestartTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
