@@ -170,4 +170,3 @@ configured later using neutron net-create).
 This replaces the previous system of using ext-port, which always created a bridge
 called br-ex for external networks which was used implicitly by external router
 interfaces.
-
