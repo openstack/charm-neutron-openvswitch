@@ -19,6 +19,8 @@ from mock import MagicMock, patch, call
 from collections import OrderedDict
 import charmhelpers.contrib.openstack.templating as templating
 
+from charmhelpers.contrib.openstack.context import EntityMac
+
 templating.OSConfigRenderer = MagicMock()
 
 import neutron_ovs_utils as nutils
@@ -34,13 +36,9 @@ import charmhelpers.core.hookenv as hookenv
 TO_PATCH = [
     'add_bridge',
     'add_bridge_port',
+    'add_bridge_bond',
     'add_ovsbridge_linuxbridge',
     'is_linuxbridge_interface',
-    'dpdk_add_bridge_port',
-    'dpdk_add_bridge_bond',
-    'dpdk_set_bond_config',
-    'dpdk_set_mtu_request',
-    'dpdk_set_interfaces_mtu',
     'add_source',
     'apt_install',
     'apt_update',
@@ -381,7 +379,6 @@ class TestNeutronOVSUtils(CharmTestCase):
             head_pkg,
             'neutron-openvswitch-agent',
             'neutron-sriov-agent',
-            'sriov-netplan-shim',
         ]
         self.assertEqual(pkg_list, expect)
 
@@ -407,7 +404,6 @@ class TestNeutronOVSUtils(CharmTestCase):
             head_pkg,
             'neutron-openvswitch-agent',
             'mlnx-switchdev-mode',
-            'sriov-netplan-shim',
             'python3-neutron',
             'python3-zmq',
         ]
@@ -431,7 +427,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         _regconfs = nutils.register_configs()
         confs = ['/etc/neutron/neutron.conf',
                  '/etc/neutron/plugins/ml2/ml2_conf.ini',
-                 '/etc/default/openvswitch-switch',
+                 # '/etc/default/openvswitch-switch',
                  '/etc/init/os-charm-phy-nic-mtu.conf']
         self.assertEqual(_regconfs.configs, confs)
 
@@ -453,7 +449,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         _regconfs = nutils.register_configs()
         confs = ['/etc/neutron/neutron.conf',
                  '/etc/neutron/plugins/ml2/openvswitch_agent.ini',
-                 '/etc/default/openvswitch-switch',
+                 # '/etc/default/openvswitch-switch',
                  '/etc/init/os-charm-phy-nic-mtu.conf']
         self.assertEqual(_regconfs.configs, confs)
 
@@ -587,7 +583,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         for item in _restart_map:
             self.assertTrue(item in _restart_map)
             self.assertTrue(expect[item] == _restart_map[item])
-        self.assertEqual(len(_restart_map.keys()), 3)
+        self.assertEqual(len(_restart_map.keys()), 2)
 
     @patch('charmhelpers.contrib.openstack.context.list_nics',
            return_value=['eth0'])
@@ -605,10 +601,11 @@ class TestNeutronOVSUtils(CharmTestCase):
         # assumed)
         self.test_config.set('data-port', 'eth0')
         nutils.configure_ovs()
+        expected_brdata = {'datapath-type': 'system'}
         self.add_bridge.assert_has_calls([
-            call('br-int', 'system'),
-            call('br-ex', 'system'),
-            call('br-data', 'system')
+            call('br-int', brdata=expected_brdata),
+            call('br-ex', brdata=expected_brdata),
+            call('br-data', brdata=expected_brdata)
         ])
         self.assertTrue(self.add_bridge_port.called)
 
@@ -618,9 +615,9 @@ class TestNeutronOVSUtils(CharmTestCase):
         self.add_bridge_port.reset_mock()
         nutils.configure_ovs()
         self.add_bridge.assert_has_calls([
-            call('br-int', 'system'),
-            call('br-ex', 'system'),
-            call('br-data', 'system')
+            call('br-int', brdata=expected_brdata),
+            call('br-ex', brdata=expected_brdata),
+            call('br-data', brdata=expected_brdata)
         ])
         # Not called since we have a bogus bridge in data-ports
         self.assertFalse(self.add_bridge_port.called)
@@ -678,15 +675,19 @@ class TestNeutronOVSUtils(CharmTestCase):
         self.ExternalPortContext.return_value = \
             DummyContext(return_value={'ext_port': 'eth0'})
         nutils.configure_ovs()
+        expected_brdata = {'datapath-type': 'system'}
         self.add_bridge.assert_has_calls([
-            call('br-int', 'system'),
-            call('br-ex', 'system'),
-            call('br-data', 'system')
+            call('br-int', brdata=expected_brdata),
+            call('br-ex', brdata=expected_brdata),
+            call('br-data', brdata=expected_brdata)
         ])
         self.add_bridge_port.assert_called_with('br-ex', 'eth0')
 
     def _run_configure_ovs_dpdk(self, mock_config, _use_dvr,
-                                _resolve_dpdk_bridges, _resolve_dpdk_bonds,
+                                _OVSDPDKDeviceContext,
+                                _BridgePortInterfaceMap,
+                                _parse_data_port_mappings,
+                                _parse_bridge_mappings,
                                 _late_init, _test_bonds,
                                 _ovs_vhostuser_client=False):
         def _resolve_port_name(pci_address, device_index, late_init):
@@ -696,153 +697,221 @@ class TestNeutronOVSUtils(CharmTestCase):
                 )
             else:
                 return 'dpdk{}'.format(device_index)
+
+        pci = ['0000:00:1c.1', '0000:00:1c.2', '0000:00:1c.3']
+        mac = ['00:00:00:00:00:01', '00:00:00:00:00:02', '00:00:00:00:00:03']
+        br = ['br-phynet1', 'br-phynet2', 'br-phynet3']
+
+        map_mock = MagicMock()
+        ovs_dpdk_mock = MagicMock()
         if _test_bonds:
-            _resolve_dpdk_bridges.return_value = OrderedDict()
-            _resolve_dpdk_bonds.return_value = OrderedDict([
-                ('0000:001c.01', 'bond0'),
-                ('0000:001c.02', 'bond1'),
-                ('0000:001c.03', 'bond2'),
-            ])
-            self.parse_data_port_mappings.return_value = OrderedDict([
-                ('bond0', 'br-phynet1'),
-                ('bond1', 'br-phynet2'),
-                ('bond2', 'br-phynet3'),
-            ])
+            _parse_data_port_mappings.return_value = {
+                'bond0': br[0], 'bond1': br[1], 'bond2': br[2]}
+            ovs_dpdk_mock.devices.return_value = OrderedDict([
+                (pci[0], EntityMac('bond0', mac[0])),
+                (pci[1], EntityMac('bond1', mac[1])),
+                (pci[2], EntityMac('bond2', mac[2]))])
+            map_mock.items.return_value = [
+                (br[0], {'bond0': {_resolve_port_name(pci[0], 0, _late_init):
+                                   {'type': 'dpdk', 'pci-address': pci[0]}}}),
+                (br[1], {'bond1': {_resolve_port_name(pci[1], 1, _late_init):
+                                   {'type': 'dpdk', 'pci-address': pci[1]}}}),
+                (br[2], {'bond2': {_resolve_port_name(pci[2], 2, _late_init):
+                                   {'type': 'dpdk', 'pci-address': pci[2]}}})]
+            map_mock.get_ifdatamap.side_effect = [
+                {_resolve_port_name(pci[0], 0, _late_init): {
+                    'type': 'dpdk', 'mtu-request': 1500,
+                    'options': {'dpdk-devargs': pci[0]}}},
+                {_resolve_port_name(pci[1], 1, _late_init): {
+                    'type': 'dpdk', 'mtu-request': 1500,
+                    'options': {'dpdk-devargs': pci[1]}}},
+                {_resolve_port_name(pci[2], 2, _late_init): {
+                    'type': 'dpdk', 'mtu-request': 1500,
+                    'options': {'dpdk-devargs': pci[2]}}}]
         else:
-            _resolve_dpdk_bridges.return_value = OrderedDict([
-                ('0000:001c.01', 'br-phynet1'),
-                ('0000:001c.02', 'br-phynet2'),
-                ('0000:001c.03', 'br-phynet3'),
-            ])
-            _resolve_dpdk_bonds.return_value = OrderedDict()
+            _parse_data_port_mappings.return_value = {
+                mac[0]: br[0], mac[1]: br[1], mac[2]: br[2]}
+            ovs_dpdk_mock.devices.return_value = OrderedDict([
+                (pci[0], EntityMac(br[0], mac[0])),
+                (pci[1], EntityMac(br[1], mac[1])),
+                (pci[2], EntityMac(br[2], mac[2]))])
+            map_mock.items.return_value = [
+                (br[0], {_resolve_port_name(pci[0], 0, _late_init):
+                         {_resolve_port_name(pci[0], 0, _late_init):
+                          {'type': 'dpdk', 'pci-address': pci[0]}}}),
+                (br[1], {_resolve_port_name(pci[1], 1, _late_init):
+                         {_resolve_port_name(pci[1], 1, _late_init):
+                          {'type': 'dpdk', 'pci-address': pci[1]}}}),
+                (br[2], {_resolve_port_name(pci[2], 2, _late_init):
+                         {_resolve_port_name(pci[2], 2, _late_init):
+                          {'type': 'dpdk', 'pci-address': pci[2]}}})]
+            map_mock.get_ifdatamap.side_effect = [
+                {_resolve_port_name(pci[0], 0, _late_init):
+                 {'type': 'dpdk', 'mtu-request': 1500,
+                  'options': {'dpdk-devargs': pci[0]}}},
+                {_resolve_port_name(pci[1], 1, _late_init):
+                 {'type': 'dpdk', 'mtu-request': 1500,
+                  'options': {'dpdk-devargs': pci[1]}}},
+                {_resolve_port_name(pci[2], 2, _late_init):
+                 {'type': 'dpdk', 'mtu-request': 1500,
+                  'options': {'dpdk-devargs': pci[2]}}}]
+
+        _OVSDPDKDeviceContext.return_value = ovs_dpdk_mock
+        _BridgePortInterfaceMap.return_value = map_mock
+        _parse_bridge_mappings.return_value = {
+            'phynet1': br[0], 'phynet2': br[1], 'phynet3': br[2]}
         _use_dvr.return_value = True
-        self.use_dpdk.return_value = True
-        self.ovs_has_late_dpdk_init.return_value = _late_init
-        self.ovs_vhostuser_client.return_value = _ovs_vhostuser_client
         mock_config.side_effect = self.test_config.get
         self.config.side_effect = self.test_config.get
         self.test_config.set('enable-dpdk', True)
+        self.use_dpdk.return_value = True
+        self.ovs_has_late_dpdk_init.return_value = _late_init
+        self.ovs_vhostuser_client.return_value = _ovs_vhostuser_client
         nutils.configure_ovs()
+        expetected_brdata = {'datapath-type': 'netdev'}
         self.add_bridge.assert_has_calls([
-            call('br-int', 'netdev'),
-            call('br-ex', 'netdev'),
-            call('br-phynet1', 'netdev'),
-            call('br-phynet2', 'netdev'),
-            call('br-phynet3', 'netdev')],
+            call('br-int', brdata=expetected_brdata),
+            call('br-ex', brdata=expetected_brdata),
+            call(br[0], brdata=expetected_brdata),
+            call(br[1], brdata=expetected_brdata),
+            call(br[2], brdata=expetected_brdata)],
             any_order=True
         )
         if _test_bonds:
-            self.dpdk_add_bridge_bond.assert_has_calls([
-                call('br-phynet1', 'bond0',
-                     {_resolve_port_name('0000:001c.01',
-                                         0, _late_init): '0000:001c.01'}),
-                call('br-phynet2', 'bond1',
-                     {_resolve_port_name('0000:001c.02',
-                                         1, _late_init): '0000:001c.02'}),
-                call('br-phynet3', 'bond2',
-                     {_resolve_port_name('0000:001c.03',
-                                         2, _late_init): '0000:001c.03'})],
-                any_order=True
-            )
-            self.dpdk_set_bond_config.assert_has_calls([
-                call('bond0',
-                     {'mode': 'balance-tcp',
-                      'lacp': 'active',
-                      'lacp-time': 'fast'}),
-                call('bond1',
-                     {'mode': 'balance-tcp',
-                      'lacp': 'active',
-                      'lacp-time': 'fast'}),
-                call('bond2',
-                     {'mode': 'balance-tcp',
-                      'lacp': 'active',
-                      'lacp-time': 'fast'})],
-                any_order=True
-            )
-            self.dpdk_set_interfaces_mtu.assert_has_calls([
-                call(1500, {'dpdk-ac48d24': None}.keys()),
-                call(1500, {'dpdk-82c1c9e': None}.keys()),
-                call(1500, {'dpdk-aebdb4d': None}.keys())],
+            self.add_bridge_bond.assert_has_calls(
+                [call(br[0], 'bond0',
+                      [_resolve_port_name(pci[0], 0, _late_init)],
+                      portdata={'bond_mode': 'balance-tcp',
+                                'lacp': 'active',
+                                'other_config': {'lacp-time': 'fast'}},
+                      ifdatamap={
+                          _resolve_port_name(pci[0], 0, _late_init): {
+                              'type': 'dpdk',
+                              'mtu-request': 1500,
+                              'options': {'dpdk-devargs': pci[0]}}}),
+                    call(br[1], 'bond1',
+                         [_resolve_port_name(pci[1], 1, _late_init)],
+                         portdata={'bond_mode': 'balance-tcp',
+                                   'lacp': 'active',
+                                   'other_config': {'lacp-time': 'fast'}},
+                         ifdatamap={
+                             _resolve_port_name(pci[1], 1, _late_init):{
+                                 'type': 'dpdk',
+                                 'mtu-request': 1500,
+                                 'options': {'dpdk-devargs': pci[1]}}}),
+                    call(br[2], 'bond2',
+                         [_resolve_port_name(pci[2], 2, _late_init)],
+                         portdata={'bond_mode': 'balance-tcp',
+                                   'lacp': 'active',
+                                   'other_config': {'lacp-time': 'fast'}},
+                         ifdatamap={
+                             _resolve_port_name(pci[2], 2, _late_init): {
+                                 'type': 'dpdk',
+                                 'mtu-request': 1500,
+                                 'options': {'dpdk-devargs': pci[2]}}})],
                 any_order=True)
         else:
-            self.dpdk_add_bridge_port.assert_has_calls([
-                call('br-phynet1',
-                     _resolve_port_name('0000:001c.01',
-                                        0, _late_init),
-                     '0000:001c.01'),
-                call('br-phynet2',
-                     _resolve_port_name('0000:001c.02',
-                                        1, _late_init),
-                     '0000:001c.02'),
-                call('br-phynet3',
-                     _resolve_port_name('0000:001c.03',
-                                        2, _late_init),
-                     '0000:001c.03')],
-                any_order=True
-            )
-            self.dpdk_set_mtu_request.assert_has_calls([
-                call(_resolve_port_name('0000:001c.01',
-                                        0, _late_init), 1500),
-                call(_resolve_port_name('0000:001c.02',
-                                        1, _late_init), 1500),
-                call(_resolve_port_name('0000:001c.03',
-                                        2, _late_init), 1500)],
-                any_order=True)
+            if _late_init:
+                self.add_bridge_port.assert_has_calls([
+                    call(br[0], _resolve_port_name(pci[0], 0, _late_init),
+                         ifdata={'type': 'dpdk',
+                                 'mtu-request': 1500,
+                                 'options': {'dpdk-devargs': pci[0]}},
+                         linkup=False, promisc=None),
+                    call(br[1], _resolve_port_name(pci[1], 1, _late_init),
+                         ifdata={'type': 'dpdk',
+                                 'mtu-request': 1500,
+                                 'options': {'dpdk-devargs': pci[1]}},
+                         linkup=False, promisc=None),
+                    call(br[2], _resolve_port_name(pci[2], 2, _late_init),
+                         ifdata={'type': 'dpdk',
+                                 'mtu-request': 1500,
+                                 'options': {'dpdk-devargs': pci[2]}},
+                         linkup=False, promisc=None)], any_order=True)
+            else:
+                self.add_bridge_port.assert_has_calls([
+                    call(br[0], _resolve_port_name(pci[0], 0, _late_init),
+                         ifdata={'type': 'dpdk', 'mtu-request': 1500},
+                         linkup=False, promisc=None),
+                    call(br[1], _resolve_port_name(pci[1], 1, _late_init),
+                         ifdata={'type': 'dpdk', 'mtu-request': 1500},
+                         linkup=False, promisc=None),
+                    call(br[2], _resolve_port_name(pci[2], 2, _late_init),
+                         ifdata={'type': 'dpdk', 'mtu-request': 1500},
+                         linkup=False, promisc=None)], any_order=True)
 
     @patch.object(nutils, 'use_hw_offload', return_value=False)
+    @patch.object(nutils, 'parse_bridge_mappings')
+    @patch.object(nutils, 'parse_data_port_mappings')
     @patch.object(neutron_ovs_context, 'NeutronAPIContext')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bonds')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bridges')
+    @patch.object(nutils, 'BridgePortInterfaceMap')
+    @patch.object(nutils, 'OVSDPDKDeviceContext')
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_dpdk(self, mock_config, _use_dvr,
-                                _resolve_dpdk_bridges,
-                                _resolve_dpdk_bonds,
+                                _OVSDPDKDeviceContext,
+                                _BridgePortInterfaceMap,
                                 _NeutronAPIContext,
+                                _parse_data_port_mappings,
+                                _parse_bridge_mappings,
                                 _use_hw_offload):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr,
-                                            _resolve_dpdk_bridges,
-                                            _resolve_dpdk_bonds,
+                                            _OVSDPDKDeviceContext,
+                                            _BridgePortInterfaceMap,
+                                            _parse_data_port_mappings,
+                                            _parse_bridge_mappings,
                                             _late_init=False,
                                             _test_bonds=False)
 
     @patch.object(nutils, 'use_hw_offload', return_value=False)
+    @patch.object(nutils, 'parse_bridge_mappings')
+    @patch.object(nutils, 'parse_data_port_mappings')
     @patch.object(neutron_ovs_context, 'NeutronAPIContext')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bonds')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bridges')
+    @patch.object(nutils, 'BridgePortInterfaceMap')
+    @patch.object(nutils, 'OVSDPDKDeviceContext')
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_dpdk_late_init(self, mock_config, _use_dvr,
-                                          _resolve_dpdk_bridges,
-                                          _resolve_dpdk_bonds,
+                                          _OVSDPDKDeviceContext,
+                                          _BridgePortInterfaceMap,
                                           _NeutronAPIContext,
+                                          _parse_data_port_mappings,
+                                          _parse_bridge_mappings,
                                           _use_hw_offload):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr,
-                                            _resolve_dpdk_bridges,
-                                            _resolve_dpdk_bonds,
+                                            _OVSDPDKDeviceContext,
+                                            _BridgePortInterfaceMap,
+                                            _parse_data_port_mappings,
+                                            _parse_bridge_mappings,
                                             _late_init=True,
                                             _test_bonds=False)
 
     @patch.object(nutils, 'use_hw_offload', return_value=False)
+    @patch.object(nutils, 'parse_bridge_mappings')
+    @patch.object(nutils, 'parse_data_port_mappings')
     @patch.object(neutron_ovs_context, 'NeutronAPIContext')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bonds')
-    @patch.object(neutron_ovs_context, 'resolve_dpdk_bridges')
+    @patch.object(nutils, 'BridgePortInterfaceMap')
+    @patch.object(nutils, 'OVSDPDKDeviceContext')
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_dpdk_late_init_bonds(self, mock_config, _use_dvr,
-                                                _resolve_dpdk_bridges,
-                                                _resolve_dpdk_bonds,
+                                                _OVSDPDKDeviceContext,
+                                                _BridgePortInterfaceMap,
                                                 _NeutronAPIContext,
+                                                _parse_data_port_mappings,
+                                                _parse_bridge_mappings,
                                                 _use_hw_offload):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr,
-                                            _resolve_dpdk_bridges,
-                                            _resolve_dpdk_bonds,
+                                            _OVSDPDKDeviceContext,
+                                            _BridgePortInterfaceMap,
+                                            _parse_data_port_mappings,
+                                            _parse_bridge_mappings,
                                             _late_init=True,
                                             _test_bonds=True)
 
@@ -947,7 +1016,7 @@ class TestNeutronOVSUtils(CharmTestCase):
 
     @patch.object(nutils, 'is_unit_paused_set')
     @patch.object(nutils.subprocess, 'check_call')
-    @patch.object(neutron_ovs_context, 'OVSDPDKDeviceContext')
+    @patch.object(nutils, 'OVSDPDKDeviceContext')
     @patch.object(nutils, 'set_Open_vSwitch_column_value')
     def test_enable_ovs_dpdk(self,
                              _set_Open_vSwitch_column_value,
@@ -980,7 +1049,7 @@ class TestNeutronOVSUtils(CharmTestCase):
 
     @patch.object(nutils, 'is_unit_paused_set')
     @patch.object(nutils.subprocess, 'check_call')
-    @patch.object(neutron_ovs_context, 'OVSDPDKDeviceContext')
+    @patch.object(nutils, 'OVSDPDKDeviceContext')
     @patch.object(nutils, 'set_Open_vSwitch_column_value')
     def test_enable_ovs_dpdk_vhostuser_client(
             self,
@@ -1101,76 +1170,3 @@ class TestNeutronOVSUtils(CharmTestCase):
             call('other_config:max-idle', '30000'),
         ])
         self.service_restart.assert_not_called()
-
-
-class TestDPDKBridgeBondMap(CharmTestCase):
-
-    def setUp(self):
-        super(TestDPDKBridgeBondMap, self).setUp(nutils,
-                                                 TO_PATCH)
-        self.config.side_effect = self.test_config.get
-
-    def test_add_port(self):
-        ctx = nutils.DPDKBridgeBondMap()
-        ctx.add_port("br1", "bond1", "port1", "00:00:00:00:00:01")
-        ctx.add_port("br1", "bond1", "port2", "00:00:00:00:00:02")
-        ctx.add_port("br1", "bond2", "port3", "00:00:00:00:00:03")
-        ctx.add_port("br1", "bond2", "port4", "00:00:00:00:00:04")
-
-        expected = [(
-            'br1', {
-                'bond1': {
-                    'port1': '00:00:00:00:00:01',
-                    'port2': '00:00:00:00:00:02'
-                },
-                'bond2': {
-                    'port3': '00:00:00:00:00:03',
-                    'port4': '00:00:00:00:00:04',
-                },
-            },
-        )]
-
-        self.assertEqual(ctx.items(), expected)
-
-
-class TestDPDKBondsConfig(CharmTestCase):
-
-    def setUp(self):
-        super(TestDPDKBondsConfig, self).setUp(nutils, TO_PATCH)
-        self.config.side_effect = self.test_config.get
-
-    def test_get_bond_config(self):
-        self.test_config.set('dpdk-bond-config',
-                             ':active-backup bond1:balance-slb:off')
-        bonds_config = nutils.DPDKBondsConfig()
-
-        self.assertEqual(bonds_config.get_bond_config('bond0'),
-                         {'mode': 'active-backup',
-                          'lacp': 'active',
-                          'lacp-time': 'fast'
-                          })
-        self.assertEqual(bonds_config.get_bond_config('bond1'),
-                         {'mode': 'balance-slb',
-                          'lacp': 'off',
-                          'lacp-time': 'fast'
-                          })
-
-
-class TestMTURequest(CharmTestCase):
-
-    def setUp(self):
-        super(TestMTURequest, self).setUp(nutils, [])
-
-    @patch.object(nutils, 'subprocess')
-    def test_dpdk_set_mtu_request(self, mock_subprocess):
-        nutils.dpdk_set_mtu_request("dpdk1", 9000)
-        mock_subprocess.check_call.assert_called_once_with(
-            ['ovs-vsctl', 'set', 'Interface', 'dpdk1', 'mtu_request=9000'])
-
-    @patch.object(nutils, 'dpdk_set_mtu_request')
-    def test_dpdk_set_interfaces_mtu(self, mock_dpdk_set_mtu_request):
-        nutils.dpdk_set_interfaces_mtu('1234', ['nic1', 'nic2'])
-        expected_calls = [
-            call('nic1', '1234'),
-            call('nic2', '1234')]
-        mock_dpdk_set_mtu_request.assert_has_calls(expected_calls)
