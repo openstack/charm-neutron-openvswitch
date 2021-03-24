@@ -30,6 +30,7 @@ from charmhelpers.contrib.openstack.utils import (
     os_application_version_set,
     CompareOpenStackReleases,
     os_release,
+    sequence_status_check_functions,
 )
 from charmhelpers.core.unitdata import kv
 from collections import OrderedDict
@@ -605,6 +606,11 @@ def configure_ovs():
 
     Note that the ext-port is deprecated and data-port/bridge-mappings are
     preferred.
+
+    Thus, if data-port is set, then ext-port is ignored (and if set, then
+    it is removed from the set of bridges unless it is defined in
+    bridge-mappings/data-port).  A warning is issued, if both data-port and
+    ext-port are set.
     """
     status_set('maintenance', 'Configuring ovs')
     if not service_running('openvswitch-switch'):
@@ -619,13 +625,21 @@ def configure_ovs():
     add_bridge(INT_BRIDGE, brdata=brdata)
     add_bridge(EXT_BRIDGE, brdata=brdata)
 
+    # If data-port is defined in the config, we can ignore ext-port value
+    # and log an error to the unit's log
+    if config('data-port') and config('ext-port'):
+        log("Both ext-port and data-port are set. ext-port is deprecated"
+            " and is not used when data-port is set.", level=ERROR)
+
     ext_port_ctx = None
     if use_dvr():
         ext_port_ctx = ExternalPortContext()()
-    if ext_port_ctx and ext_port_ctx['ext_port']:
-        add_bridge_port(EXT_BRIDGE, ext_port_ctx['ext_port'],
-                        ifdata=generate_external_ids(EXT_BRIDGE),
-                        portdata=generate_external_ids(EXT_BRIDGE))
+    # Set ext-port only if data-port isn't defined.
+    if not config('data-port') and ext_port_ctx and ext_port_ctx['ext_port']:
+        add_bridge_port(
+            EXT_BRIDGE, ext_port_ctx['ext_port'],
+            ifdata=generate_external_ids(EXT_BRIDGE),
+            portdata=generate_external_ids(EXT_BRIDGE))
 
     modern_ovs = ovs_has_late_dpdk_init()
 
@@ -868,6 +882,22 @@ def enable_local_dhcp():
     return not is_container() and config('enable-local-dhcp-and-metadata')
 
 
+def check_ext_port_data_port_config(configs):
+    """Checks that if data-port is set (other than None) then if ext-port is
+    also set, add a warning to the status line.
+
+    :param configs: an OSConfigRender() instance.
+    :type configs: OSConfigRender
+    :returns: (status, message)
+    :rtype: (str, str)
+    """
+    if config('data-port') and config('ext-port'):
+        return ("blocked", "ext-port set when data-port set: see config.yaml")
+    # return 'unknown' as the lowest priority to not clobber an existing
+    # status.
+    return None, None
+
+
 def assess_status(configs):
     """Assess status of current unit
     Decides what the state of the unit should be based on the current
@@ -909,7 +939,8 @@ def assess_status_func(configs, exclude_services=None):
         required_interfaces['neutron-plugin-api'] = ['neutron-plugin-api']
     return make_assess_status_func(
         configs, required_interfaces,
-        charm_func=validate_ovs_use_veth,
+        charm_func=sequence_status_check_functions(
+            validate_ovs_use_veth, check_ext_port_data_port_config),
         services=services(exclude_services),
         ports=None)
 
