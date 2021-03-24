@@ -404,13 +404,18 @@ options:
       access. The charm will go into a blocked state if this is attempted.
   keepalived-healthcheck-interval:
     type: int
-    default: 30
+    default: 0
     description: |
-      By default all HA routers will check their external network gateway
-      by sending a ping and if that fails they trigger a vrrp transition. This
-      option defines how frequently this check is performed. Setting this value
-      to 0 will disable the healthchecks. Note that this only applies when
-      using l3ha and dvr_snat.
+      Specifies the frequency (in seconds) at which HA routers will check
+      their external network gateway by performing an ICMP ping between the
+      virtual routers. When the ping check fails, this will trigger the HA
+      routers to failover to another node. A value of 0 will disable this
+      check. This setting only applies when using l3ha and dvr_snat.
+      .
+      WARNING: Enabling the health checks should be done with caution as it
+      may lead to rapid failovers of HA routers. ICMP pings are low priority
+      and may be dropped or take longer than the 1 second afforded by neutron,
+      which leads to routers failing over to other nodes.
   of-inactivity-probe:
     type: int
     default: 10
