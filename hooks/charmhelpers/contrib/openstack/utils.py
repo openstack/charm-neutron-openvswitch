@@ -151,6 +151,7 @@ OPENSTACK_RELEASES = (
     'train',
     'ussuri',
     'victoria',
+    'wallaby',
 )
 
 UBUNTU_OPENSTACK_RELEASE = OrderedDict([
@@ -173,6 +174,7 @@ UBUNTU_OPENSTACK_RELEASE = OrderedDict([
     ('eoan', 'train'),
     ('focal', 'ussuri'),
     ('groovy', 'victoria'),
+    ('hirsute', 'wallaby'),
 ])
 
 
@@ -196,6 +198,7 @@ OPENSTACK_CODENAMES = OrderedDict([
     ('2019.2', 'train'),
     ('2020.1', 'ussuri'),
     ('2020.2', 'victoria'),
+    ('2021.1', 'wallaby'),
 ])
 
 # The ugly duckling - must list releases oldest to newest
@@ -304,8 +307,8 @@ PACKAGE_CODENAMES = {
         ('14', 'rocky'),
         ('15', 'stein'),
         ('16', 'train'),
-        ('18', 'ussuri'),
-        ('19', 'victoria'),
+        ('18', 'ussuri'),  # Note this was actually 17.0 - 18.3
+        ('19', 'victoria'),  # Note this is really 18.6
     ]),
     'ceilometer-common': OrderedDict([
         ('5', 'liberty'),
@@ -1092,6 +1095,12 @@ def _determine_os_workload_status(
             svc_msg = "Services queued for restart: {}".format(
                 ', '.join(sorted(deferred_restarts)))
             message = "{}. {}".format(message, svc_msg)
+        deferred_hooks = deferred_events.get_deferred_hooks()
+        if deferred_hooks:
+            svc_msg = "Hooks skipped due to disabled auto restarts: {}".format(
+                ', '.join(sorted(deferred_hooks)))
+            message = "{}. {}".format(message, svc_msg)
+
     except Exception:
         pass
 
@@ -1574,6 +1583,33 @@ def is_unit_paused_set():
             return not(not(kv.get('unit-paused')))
     except Exception:
         return False
+
+
+def is_hook_allowed(hookname, check_deferred_restarts=True):
+    """Check if hook can run.
+
+    :param hookname: Name of hook to check..
+    :type hookname: str
+    :param check_deferred_restarts: Whether to check deferred restarts.
+    :type check_deferred_restarts: bool
+    """
+    permitted = True
+    reasons = []
+    if is_unit_paused_set():
+        reasons.append(
+            "Unit is pause or upgrading. Skipping {}".format(hookname))
+        permitted = False
+
+    if check_deferred_restarts:
+        if deferred_events.is_restart_permitted():
+            permitted = True
+            deferred_events.clear_deferred_hook(hookname)
+        else:
+            if not config().changed('enable-auto-restarts'):
+                deferred_events.set_deferred_hook(hookname)
+            reasons.append("auto restarts are disabled")
+            permitted = False
+    return permitted, " and ".join(reasons)
 
 
 def manage_payload_services(action, services=None, charm_func=None):
@@ -2627,14 +2663,17 @@ def restart_services_action_helper(all_services):
         restart_services_action(services=services)
 
 
-def show_deferred_restarts_action_helper():
+def show_deferred_events_action_helper():
     """Helper to run the show-deferred-restarts action."""
-    output = []
+    restarts = []
     for event in deferred_events.get_deferred_events():
-        output.append('{} {} {}'.format(
+        restarts.append('{} {} {}'.format(
             str(event.timestamp),
             event.service.ljust(40),
             event.reason))
-    output.sort()
+    restarts.sort()
+    output = {
+        'restarts': restarts,
+        'hooks': deferred_events.get_deferred_hooks()}
     action_set({'output': "{}".format(
         yaml.dump(output, default_flow_style=False))})
