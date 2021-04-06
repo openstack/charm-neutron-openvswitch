@@ -170,3 +170,8 @@ configured later using neutron net-create).
 This replaces the previous system of using ext-port, which always created a bridge
 called br-ex for external networks which was used implicitly by external router
 interfaces.
+
+Note: If data-port is specified, the value of ext-port is ignored. This
+prevents misconfiguration of the charm. Aditionaly, in this scenario an error
+message is logged and the unit is marked as blocked in order to notify about
+the misconfiguration.

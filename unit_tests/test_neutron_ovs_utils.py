@@ -1017,6 +1017,45 @@ class TestNeutronOVSUtils(CharmTestCase):
             call('br-ex', '127.0.0.1:80'),
         ])
 
+    @patch.object(nutils, 'use_dvr')
+    @patch('charmhelpers.contrib.network.ovs.charm_name')
+    @patch('charmhelpers.contrib.openstack.context.config')
+    def test_configure_ovs_ensure_ext_port_ignored(
+            self, mock_config, mock_charm_name, mock_use_dvr):
+        mock_use_dvr.return_value = True
+        mock_charm_name.return_value = "neutron-openvswitch"
+        mock_config.side_effect = self.test_config.get
+        self.config.side_effect = self.test_config.get
+        # configure ext-port and data-port at the same time
+        self.test_config.set('ext-port', 'p0')
+        self.ExternalPortContext.return_value = DummyContext(
+            return_value={'ext_port': 'p0'})
+        self.test_config.set('data-port', 'br-data:p1')
+        self.test_config.set('bridge-mappings', 'net0:br-data')
+        nutils.configure_ovs()
+        # assert that p0 wasn't added to br-ex
+        self.assertNotIn(call('br-ex', 'p0', ifdata=ANY, portdata=ANY),
+                         self.add_bridge_port.call_args_list)
+
+    @patch.object(nutils, 'use_dvr')
+    @patch('charmhelpers.contrib.network.ovs.charm_name')
+    @patch('charmhelpers.contrib.openstack.context.config')
+    def test_configure_ovs_ensure_ext_port_used(
+            self, mock_config, mock_charm_name, mock_use_dvr):
+        mock_use_dvr.return_value = True
+        mock_charm_name.return_value = "neutron-openvswitch"
+        mock_config.side_effect = self.test_config.get
+        self.config.side_effect = self.test_config.get
+        self.test_config.set('ext-port', 'p0')
+        self.ExternalPortContext.return_value = DummyContext(
+            return_value={'ext_port': 'p0'})
+        # leave data-port empty to simulate legacy config
+        self.test_config.set('data-port', '')
+        nutils.configure_ovs()
+        # assert that p0 was added to br-ex
+        self.assertIn(call('br-ex', 'p0', ifdata=ANY, portdata=ANY),
+                      self.add_bridge_port.call_args_list)
+
     @patch.object(neutron_ovs_context, 'SharedSecretContext')
     def test_get_shared_secret(self, _dvr_secret_ctxt):
         _dvr_secret_ctxt.return_value = \
@@ -1034,7 +1073,25 @@ class TestNeutronOVSUtils(CharmTestCase):
                 nutils.VERSION_PACKAGE
             )
 
+    @patch('charmhelpers.contrib.openstack.context.config')
+    def test_check_ext_port_data_port_config(self, mock_config):
+        mock_config.side_effect = self.test_config.get
+        self.config.side_effect = self.test_config.get
+        configs = [
+            # conflicting, incorrect
+            (('data-port', 'br-data:p0'), ('ext-port', 'p1'), 'blocked'),
+            # deperacted but still correct
+            (('data-port', ''), ('ext-port', 'p1'), None),
+            # correct, modern
+            (('data-port', 'br-data:p0'), ('ext-port', ''), None)]
+        for (dp, ep, expected) in configs:
+            self.test_config.set(*dp)
+            self.test_config.set(*ep)
+            status = nutils.check_ext_port_data_port_config(mock_config)
+            self.assertIn(expected, status)
+
     @patch.object(nutils, 'REQUIRED_INTERFACES')
+    @patch.object(nutils, 'sequence_status_check_functions')
     @patch.object(nutils, 'services')
     @patch.object(nutils, 'determine_ports')
     @patch.object(nutils, 'make_assess_status_func')
@@ -1044,19 +1101,24 @@ class TestNeutronOVSUtils(CharmTestCase):
                                 make_assess_status_func,
                                 determine_ports,
                                 services,
+                                sequence_functions,
                                 REQUIRED_INTERFACES):
         services.return_value = 's1'
         determine_ports.return_value = 'p1'
         enable_nova_metadata.return_value = False
+        sequence_functions.return_value = 'sequence_return'
         REQUIRED_INTERFACES.copy.return_value = {'Test': True}
         nutils.assess_status_func('test-config')
         # ports=None whilst port checks are disabled.
         make_assess_status_func.assert_called_once_with(
             'test-config',
             {'Test': True},
-            charm_func=nutils.validate_ovs_use_veth,
+            charm_func='sequence_return',
             services='s1',
             ports=None)
+        sequence_functions.assert_called_once_with(
+            nutils.validate_ovs_use_veth,
+            nutils.check_ext_port_data_port_config)
 
     def test_pause_unit_helper(self):
         with patch.object(nutils, '_pause_resume_helper') as prh:

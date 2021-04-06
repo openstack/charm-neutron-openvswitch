@@ -58,9 +58,11 @@ tests:
   - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOpenvSwitchTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
+  - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
   - migrate-ovn:
     - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
+    - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
     - zaza.openstack.charm_tests.ovn.tests.OVSOVNMigrationTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
 tests_options:
