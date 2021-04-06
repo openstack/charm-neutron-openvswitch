@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hashlib
 import json
 import os
 from itertools import chain
@@ -38,6 +37,7 @@ import neutron_ovs_context
 from charmhelpers.contrib.network.ovs import (
     add_bridge,
     add_bridge_port,
+    add_bridge_bond,
     is_linuxbridge_interface,
     add_ovsbridge_linuxbridge,
     full_restart,
@@ -50,6 +50,7 @@ from charmhelpers.core.hookenv import (
     log,
     status_set,
     ERROR,
+    WARNING,
 )
 from charmhelpers.contrib.openstack.neutron import (
     parse_bridge_mappings,
@@ -57,11 +58,15 @@ from charmhelpers.contrib.openstack.neutron import (
     headers_package,
 )
 from charmhelpers.contrib.openstack.context import (
-    ExternalPortContext,
     DataPortContext,
-    WorkerConfigContext,
-    parse_data_port_mappings,
     DHCPAgentContext,
+    DPDKDeviceContext,
+    ExternalPortContext,
+    OVSDPDKDeviceContext,
+    WorkerConfigContext,
+    BondConfig,
+    BridgePortInterfaceMap,
+    parse_data_port_mappings,
     validate_ovs_use_veth,
 )
 from charmhelpers.core.host import (
@@ -174,17 +179,6 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['neutron-openvswitch-agent'],
         'contexts': [neutron_ovs_context.OVSPluginContext()],
     }),
-    (OVS_DEFAULT, {
-        'services': ['openvswitch-switch'],
-        'contexts': [neutron_ovs_context.OVSDPDKDeviceContext(),
-                     neutron_ovs_context.OVSPluginContext(),
-                     neutron_ovs_context.RemoteRestartContext(
-                         ['neutron-plugin', 'neutron-control'])],
-    }),
-    (DPDK_INTERFACES, {
-        'services': ['dpdk', 'openvswitch-switch'],
-        'contexts': [neutron_ovs_context.DPDKDeviceContext()],
-    }),
     (PHY_NIC_MTU_CONF, {
         'services': ['os-charm-phy-nic-mtu'],
         'contexts': [context.PhyNICMTUContext()],
@@ -222,6 +216,18 @@ DVR_RESOURCE_MAP = OrderedDict([
         'contexts': [context.ExternalPortContext()],
     }),
 ])
+DPDK_RESOURCE_MAP = OrderedDict([
+    (OVS_DEFAULT, {
+        'services': ['openvswitch-switch'],
+        'contexts': [DPDKDeviceContext(),
+                     neutron_ovs_context.RemoteRestartContext(
+                         ['neutron-plugin', 'neutron-control'])],
+    }),
+    (DPDK_INTERFACES, {
+        'services': ['dpdk', 'openvswitch-switch'],
+        'contexts': [DPDKDeviceContext()],
+    }),
+])
 SRIOV_RESOURCE_MAP = OrderedDict([
     (NEUTRON_SRIOV_AGENT_CONF, {
         'services': ['neutron-sriov-agent'],
@@ -247,7 +253,7 @@ def install_packages():
     # The default PPA published packages back to Xenial, which covers
     # all target series for this charm.
     if config('networking-tools-source') and \
-       (enable_sriov() or use_hw_offload()):
+       (use_dpdk() or enable_sriov() or use_hw_offload()):
         add_source(config('networking-tools-source'))
     apt_update()
     # NOTE(jamespage): ensure early install of dkms related
@@ -333,12 +339,9 @@ def determine_packages():
             pkgs.append('neutron-sriov-agent')
         else:
             pkgs.append('neutron-plugin-sriov-agent')
-        pkgs.append('sriov-netplan-shim')
 
     if use_hw_offload():
         pkgs.append('mlnx-switchdev-mode')
-        if 'sriov-netplan-shim' not in pkgs:
-            pkgs.append('sriov-netplan-shim')
 
     if cmp_release >= 'rocky':
         pkgs = [p for p in pkgs if not p.startswith('python-')]
@@ -367,10 +370,11 @@ def register_configs(release=None):
 
 
 def resource_map():
-    '''
-    Dynamically generate a map of resources that will be managed for a single
-    hook execution.
-    '''
+    """Get map of resources that will be managed for a single hook execution.
+
+    :returns: map of resources
+    :rtype: OrderedDict[str,Dict[str,List[str]]]
+    """
     drop_config = []
     resource_map = deepcopy(BASE_RESOURCE_MAP)
     if use_dvr():
@@ -395,10 +399,12 @@ def resource_map():
         resource_map[NEUTRON_CONF]['services'].append(
             'neutron-openvswitch-agent'
         )
-        if not use_dpdk():
-            drop_config.append(DPDK_INTERFACES)
+        if use_dpdk():
+            resource_map.update(DPDK_RESOURCE_MAP)
+            if ovs_has_late_dpdk_init():
+                drop_config.append(OVS_DEFAULT)
     else:
-        drop_config.extend([OVS_CONF, DPDK_INTERFACES])
+        drop_config.append(OVS_CONF)
 
     if enable_sriov():
         sriov_agent_name = 'neutron-sriov-agent'
@@ -525,7 +531,7 @@ def enable_ovs_dpdk():
     subprocess.check_call(UPDATE_ALTERNATIVES + [OVS_DPDK_BIN])
     values_changed = []
     if ovs_has_late_dpdk_init():
-        dpdk_context = neutron_ovs_context.OVSDPDKDeviceContext()
+        dpdk_context = OVSDPDKDeviceContext()
         other_config = OrderedDict([
             ('dpdk-lcore-mask', dpdk_context.cpu_mask()),
             ('dpdk-socket-mem', dpdk_context.socket_memory()),
@@ -593,9 +599,15 @@ def configure_ovs():
     status_set('maintenance', 'Configuring ovs')
     if not service_running('openvswitch-switch'):
         full_restart()
-    datapath_type = determine_datapath_type()
-    add_bridge(INT_BRIDGE, datapath_type)
-    add_bridge(EXT_BRIDGE, datapath_type)
+
+    # all bridges use the same datapath_type
+    brdata = {
+        'datapath-type': determine_datapath_type(),
+    }
+
+    add_bridge(INT_BRIDGE, brdata=brdata)
+    add_bridge(EXT_BRIDGE, brdata=brdata)
+
     ext_port_ctx = None
     if use_dvr():
         ext_port_ctx = ExternalPortContext()()
@@ -605,6 +617,7 @@ def configure_ovs():
     modern_ovs = ovs_has_late_dpdk_init()
 
     bridgemaps = None
+    portmaps = None
     if not use_dpdk():
         # NOTE(jamespage):
         # Its possible to support both hardware offloaded 'direct' ports
@@ -614,7 +627,7 @@ def configure_ovs():
         portmaps = DataPortContext()()
         bridgemaps = parse_bridge_mappings(config('bridge-mappings'))
         for br in bridgemaps.values():
-            add_bridge(br, datapath_type)
+            add_bridge(br, brdata=brdata)
             if not portmaps:
                 continue
 
@@ -634,81 +647,78 @@ def configure_ovs():
             level=ERROR)
     elif use_dpdk():
         log('Configuring bridges with DPDK', level=DEBUG)
-        global_mtu = (
-            neutron_ovs_context.NeutronAPIContext()()['global_physnet_mtu'])
-        # NOTE: when in dpdk mode, add based on pci bus order
-        #       with type 'dpdk'
-        bridgemaps = neutron_ovs_context.resolve_dpdk_bridges()
-        log('bridgemaps: {}'.format(bridgemaps), level=DEBUG)
-        device_index = 0
-        for pci_address, br in bridgemaps.items():
-            log('Adding DPDK bridge: {}:{}'.format(br, datapath_type),
+
+        # TODO(sahid): We should also take into account the
+        # "physical-network-mtus" in case different MTUs are
+        # configured based on physical networks.
+        global_mtu = (neutron_ovs_context.NeutronAPIContext()
+                      ()['global_physnet_mtu'])
+
+        dpdk_context = OVSDPDKDeviceContext()
+        devices = dpdk_context.devices()
+
+        portmaps = parse_data_port_mappings(config('data-port'))
+        bridgemaps = parse_bridge_mappings(config('bridge-mappings'))
+
+        bridge_port_interface_map = BridgePortInterfaceMap()
+        bond_config = BondConfig()
+
+        for br, port_iface_map in bridge_port_interface_map.items():
+            log('Adding DPDK bridge: {}:{}'.format(br, brdata),
                 level=DEBUG)
-            add_bridge(br, datapath_type)
+            add_bridge(br, brdata=brdata)
             if modern_ovs:
-                portname = 'dpdk-{}'.format(
-                    hashlib.sha1(pci_address.encode('UTF-8')).hexdigest()[:7]
-                )
-            else:
-                portname = 'dpdk{}'.format(device_index)
-
-            log('Adding DPDK port: {}:{}:{}'.format(br, portname,
-                                                    pci_address),
-                level=DEBUG)
-            dpdk_add_bridge_port(br, portname,
-                                 pci_address)
-            # TODO(sahid): We should also take into account the
-            # "physical-network-mtus" in case different MTUs are
-            # configured based on physical networks.
-            dpdk_set_mtu_request(portname, global_mtu)
-            device_index += 1
-
-        if modern_ovs:
-            log('Configuring bridges with modern_ovs/DPDK',
-                level=DEBUG)
-            bondmaps = neutron_ovs_context.resolve_dpdk_bonds()
-            log('bondmaps: {}'.format(bondmaps), level=DEBUG)
-            bridge_bond_map = DPDKBridgeBondMap()
-            portmap = parse_data_port_mappings(config('data-port'))
-            log('portmap: {}'.format(portmap), level=DEBUG)
-            for pci_address, bond in bondmaps.items():
-                if bond in portmap:
-                    log('Adding DPDK bridge: {}:{}'.format(portmap[bond],
-                                                           datapath_type),
-                        level=DEBUG)
-                    add_bridge(portmap[bond], datapath_type)
-                    portname = 'dpdk-{}'.format(
-                        hashlib.sha1(pci_address.encode('UTF-8'))
-                        .hexdigest()[:7]
-                    )
-                    bridge_bond_map.add_port(portmap[bond], bond,
-                                             portname, pci_address)
-
-            log('bridge_bond_map: {}'.format(bridge_bond_map),
-                level=DEBUG)
-            bond_configs = DPDKBondsConfig()
-            for br, bonds in bridge_bond_map.items():
-                for bond, port_map in bonds.items():
-                    log('Adding DPDK bond: {}:{}:{}'.format(br, bond,
-                                                            port_map),
-                        level=DEBUG)
-                    dpdk_add_bridge_bond(br, bond, port_map)
-                    dpdk_set_interfaces_mtu(
-                        global_mtu,
-                        port_map.keys())
-                    log('Configuring DPDK bond: {}:{}'.format(
-                        bond,
-                        bond_configs.get_bond_config(bond)),
-                        level=DEBUG)
-                    dpdk_set_bond_config(
-                        bond,
-                        bond_configs.get_bond_config(bond)
-                    )
+                for port in port_iface_map.keys():
+                    ifdatamap = bridge_port_interface_map.get_ifdatamap(
+                        br, port)
+                    # NOTE: DPDK bonds are referenced by name and can be found
+                    #       in the data-port config, regular DPDK ports are
+                    #       referenced by MAC addresses and their names should
+                    #       never be found in data-port
+                    if port in portmaps.keys():
+                        log('Adding DPDK bond: {}({}) to bridge: {}'.format(
+                            port, list(ifdatamap.keys()), br), level=DEBUG)
+                        add_bridge_bond(
+                            br, port, list(ifdatamap.keys()),
+                            portdata=bond_config.get_ovs_portdata(port),
+                            ifdatamap=ifdatamap)
+                    else:
+                        log('Adding DPDK port: {} to bridge: {}'.format(
+                            port, br), level=DEBUG)
+                        ifdata = ifdatamap[port]
+                        add_bridge_port(br, port, ifdata=ifdata,
+                                        linkup=False, promisc=None)
+        if not modern_ovs:
+            # port enumeration in legacy OVS-DPDK must follow alphabetic order
+            # of the PCI addresses
+            dev_idx = 0
+            for pci, mac in sorted(devices.items()):
+                # if mac.entity is a bridge, then the port can be added
+                # directly, otherwise it is a bond (supported only in
+                # modern_ovs) or misconfiguration
+                if mac.entity in bridgemaps.values():
+                    ifdata = {
+                        'type': 'dpdk',
+                        'mtu-request': global_mtu
+                    }
+                    ifname = 'dpdk{}'.format(dev_idx)
+                    log('Adding DPDK port {}:{} to bridge {}'.format(
+                        ifname, ifdata, mac.entity), level=DEBUG)
+                    add_bridge_port(
+                        mac.entity, ifname, ifdata=ifdata, linkup=False,
+                        promisc=None)
+                else:
+                    log('DPDK device {} skipped, {} is not a bridge'.format(
+                        pci, mac.entity), level=WARNING)
+                dev_idx += 1
 
     target = config('ipfix-target')
     bridges = [INT_BRIDGE, EXT_BRIDGE]
     if bridgemaps:
         bridges.extend(bridgemaps.values())
+    elif portmaps:
+        bridges.extend(
+            [bridge_mac.entity for bridge_mac in portmaps.values()])
 
     if target:
         for bridge in bridges:
@@ -769,7 +779,7 @@ def determine_datapath_type():
 def use_dpdk():
     '''Determine whether DPDK should be used'''
     cmp_release = CompareOpenStackReleases(
-        os_release('neutron-common', base='icehouse'))
+        os_release('neutron-common', base='icehouse', reset_cache=True))
     return (cmp_release >= 'mitaka' and config('enable-dpdk'))
 
 
@@ -823,72 +833,6 @@ class SRIOVContext_adapter(object):
 
     def __call__(self):
         return {'sriov_device': self._sriov_device}
-
-
-# TODO: update into charm-helpers to add port_type parameter
-def dpdk_add_bridge_port(name, port, pci_address=None):
-    ''' Add a port to the named openvswitch bridge '''
-    # log('Adding port {} to bridge {}'.format(port, name))
-    if ovs_has_late_dpdk_init():
-        cmd = ["ovs-vsctl",
-               "add-port", name, port, "--",
-               "set", "Interface", port,
-               "type=dpdk",
-               "options:dpdk-devargs={}".format(pci_address)]
-    else:
-        cmd = ["ovs-vsctl", "--",
-               "--may-exist", "add-port", name, port,
-               "--", "set", "Interface", port, "type=dpdk"]
-    subprocess.check_call(cmd)
-
-
-def dpdk_add_bridge_bond(bridge_name, bond_name, port_map):
-    ''' Add ports to a bond attached to the named openvswitch bridge '''
-    if not ovs_has_late_dpdk_init():
-        raise Exception("Bonds are not supported for OVS pre-2.6.0")
-
-    cmd = ["ovs-vsctl", "--may-exist",
-           "add-bond", bridge_name, bond_name]
-    for portname in port_map.keys():
-        cmd.append(portname)
-    for portname, pci_address in port_map.items():
-        cmd.extend(["--", "set", "Interface", portname,
-                    "type=dpdk",
-                    "options:dpdk-devargs={}".format(pci_address)])
-    subprocess.check_call(cmd)
-
-
-def dpdk_set_bond_config(bond_name, config):
-    if not ovs_has_late_dpdk_init():
-        raise Exception("Bonds are not supported for OVS pre-2.6.0")
-
-    cmd = ["ovs-vsctl",
-           "--", "set", "port", bond_name,
-           "bond_mode={}".format(config['mode']),
-           "--", "set", "port", bond_name,
-           "lacp={}".format(config['lacp']),
-           "--", "set", "port", bond_name,
-           "other_config:lacp-time=={}".format(config['lacp-time']),
-           ]
-    subprocess.check_call(cmd)
-
-
-def dpdk_set_mtu_request(port, mtu):
-    cmd = ["ovs-vsctl", "set", "Interface", port,
-           "mtu_request={}".format(mtu)]
-    subprocess.check_call(cmd)
-
-
-def dpdk_set_interfaces_mtu(mtu, ports):
-    """Set MTU on dpdk ports.
-
-    :param mtu: Name of unit to match
-    :type mtu: str
-    :param ports: List of ports
-    :type ports: []
-    """
-    for port in ports:
-        dpdk_set_mtu_request(port, mtu)
 
 
 def enable_nova_metadata():
@@ -982,91 +926,3 @@ def _pause_resume_helper(f, configs, exclude_services=None):
     f(assess_status_func(configs, exclude_services),
       services=services(exclude_services),
       ports=None)
-
-
-class DPDKBridgeBondMap():
-
-    def __init__(self):
-        self.map = {}
-
-    def add_port(self, bridge, bond, portname, pci_address):
-        if bridge not in self.map:
-            self.map[bridge] = {}
-        if bond not in self.map[bridge]:
-            self.map[bridge][bond] = {}
-        self.map[bridge][bond][portname] = pci_address
-
-    def items(self):
-        return list(self.map.items())
-
-
-class DPDKBondsConfig():
-    '''
-    A class to parse dpdk-bond-config into a dictionary and
-    provide a convenient config get interface.
-    '''
-
-    DEFAUL_LACP_CONFIG = {
-        'mode': 'balance-tcp',
-        'lacp': 'active',
-        'lacp-time': 'fast'
-    }
-    ALL_BONDS = 'ALL_BONDS'
-
-    BOND_MODES = ['active-backup', 'balance-slb', 'balance-tcp']
-    BOND_LACP = ['active', 'passive', 'off']
-    BOND_LACP_TIME = ['fast', 'slow']
-
-    def __init__(self):
-
-        self.lacp_config = {
-            self.ALL_BONDS: deepcopy(self.DEFAUL_LACP_CONFIG)
-        }
-
-        lacp_config = config('dpdk-bond-config')
-        if lacp_config:
-            lacp_config_map = lacp_config.split()
-            for entry in lacp_config_map:
-                bond, entry = self._partition_entry(entry)
-                if not bond:
-                    bond = self.ALL_BONDS
-
-                mode, entry = self._partition_entry(entry)
-                if not mode:
-                    mode = self.DEFAUL_LACP_CONFIG['mode']
-                assert mode in self.BOND_MODES, \
-                    "Bond mode {} is invalid".format(mode)
-
-                lacp, entry = self._partition_entry(entry)
-                if not lacp:
-                    lacp = self.DEFAUL_LACP_CONFIG['lacp']
-                assert lacp in self.BOND_LACP, \
-                    "Bond lacp {} is invalid".format(lacp)
-
-                lacp_time, entry = self._partition_entry(entry)
-                if not lacp_time:
-                    lacp_time = self.DEFAUL_LACP_CONFIG['lacp-time']
-                assert lacp_time in self.BOND_LACP_TIME, \
-                    "Bond lacp-time {} is invalid".format(lacp_time)
-
-                self.lacp_config[bond] = {
-                    'mode': mode,
-                    'lacp': lacp,
-                    'lacp-time': lacp_time
-                }
-
-    def _partition_entry(self, entry):
-        t = entry.partition(":")
-        return t[0], t[2]
-
-    def get_bond_config(self, bond):
-        '''
-        Get the LACP configuration for a bond
-
-        :param bond: the bond name
-        :return: a dictionary with the configuration of the
-        '''
-        if bond not in self.lacp_config:
-            return self.lacp_config[self.ALL_BONDS]
-
-        return self.lacp_config[bond]

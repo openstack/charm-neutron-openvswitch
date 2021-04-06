@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
-import glob
 import os
 import uuid
-from pci import PCINetDevices
 from charmhelpers.core.hookenv import (
     config,
     log,
@@ -42,13 +39,11 @@ from charmhelpers.contrib.network.ip import (
 from charmhelpers.contrib.openstack.context import (
     OSContextGenerator,
     NeutronAPIContext,
-    parse_data_port_mappings
 )
 from charmhelpers.contrib.openstack.utils import (
     os_release,
     CompareOpenStackReleases,
 )
-from charmhelpers.core.unitdata import kv
 
 IPTABLES_HYBRID = 'iptables_hybrid'
 OPENVSWITCH = 'openvswitch'
@@ -365,182 +360,6 @@ class L3AgentContext(OSContextGenerator):
 
         ctxt['l3_extension_plugins'] = ','.join(l3_extension_plugins)
 
-        return ctxt
-
-
-def resolve_dpdk_bridges():
-    '''
-    Resolve local PCI devices from configured mac addresses
-    using the data-port configuration option
-
-    @return: OrderDict indexed by PCI device address.
-    '''
-    ports = config('data-port')
-    devices = PCINetDevices()
-    resolved_devices = collections.OrderedDict()
-    db = kv()
-    if ports:
-        # NOTE: ordered dict of format {[mac]: bridge}
-        portmap = parse_data_port_mappings(ports)
-        for mac, bridge in portmap.items():
-            pcidev = devices.get_device_from_mac(mac)
-            if pcidev:
-                # NOTE: store mac->pci allocation as post binding
-                #       to dpdk, it disappears from PCIDevices.
-                db.set(mac, pcidev.pci_address)
-                db.flush()
-
-            pci_address = db.get(mac)
-            if pci_address:
-                resolved_devices[pci_address] = bridge
-
-    return resolved_devices
-
-
-def resolve_dpdk_bonds():
-    '''
-    Resolve local PCI devices from configured mac addresses
-    using the dpdk-bond-mappings configuration option
-
-    @return: OrderDict indexed by PCI device address.
-    '''
-    bonds = config('dpdk-bond-mappings')
-    devices = PCINetDevices()
-    resolved_devices = collections.OrderedDict()
-    db = kv()
-    if bonds:
-        # NOTE: ordered dict of format {[mac]: bond}
-        bondmap = parse_data_port_mappings(bonds)
-        for mac, bond in bondmap.items():
-            pcidev = devices.get_device_from_mac(mac)
-            if pcidev:
-                # NOTE: store mac->pci allocation as post binding
-                #       to dpdk, it disappears from PCIDevices.
-                db.set(mac, pcidev.pci_address)
-                db.flush()
-
-            pci_address = db.get(mac)
-            if pci_address:
-                resolved_devices[pci_address] = bond
-
-    return resolved_devices
-
-
-def parse_cpu_list(cpulist):
-    '''
-    Parses a linux cpulist for a numa node
-
-    @return list of cores
-    '''
-    cores = []
-    ranges = cpulist.split(',')
-    for cpu_range in ranges:
-        if "-" in cpu_range:
-            cpu_min_max = cpu_range.split('-')
-            cores += range(int(cpu_min_max[0]),
-                           int(cpu_min_max[1]) + 1)
-        else:
-            cores.append(int(cpu_range))
-    return cores
-
-
-def numa_node_cores():
-    '''Dict of numa node -> cpu core mapping'''
-    nodes = {}
-    node_regex = '/sys/devices/system/node/node*'
-    for node in glob.glob(node_regex):
-        index = node.lstrip('/sys/devices/system/node/node')
-        with open(os.path.join(node, 'cpulist')) as cpulist:
-            nodes[index] = parse_cpu_list(cpulist.read().strip())
-    return nodes
-
-
-class DPDKDeviceContext(OSContextGenerator):
-
-    def __call__(self):
-        driver = config('dpdk-driver')
-        if driver is None:
-            return {}
-        # Resolve PCI devices for both directly used devices (_bridges)
-        # and devices for use in dpdk bonds (_bonds)
-        pci_devices = resolve_dpdk_bridges()
-        pci_devices.update(resolve_dpdk_bonds())
-        return {'devices': pci_devices,
-                'driver': driver}
-
-
-class OVSDPDKDeviceContext(OSContextGenerator):
-
-    def cpu_mask(self):
-        '''
-        Hex formatted CPU mask based on using the first
-        config:dpdk-socket-cores cores of each NUMA node
-        in the unit.
-        '''
-        num_cores = config('dpdk-socket-cores')
-        mask = 0
-        for cores in numa_node_cores().values():
-            for core in cores[:num_cores]:
-                mask = mask | 1 << core
-        return format(mask, '#04x')
-
-    def socket_memory(self):
-        '''
-        Formatted list of socket memory configuration for dpdk using
-        config:dpdk-socket-memory per NUMA node.
-        '''
-        sm_size = config('dpdk-socket-memory')
-        node_regex = '/sys/devices/system/node/node*'
-        mem_list = [str(sm_size) for _ in glob.glob(node_regex)]
-        if mem_list:
-            return ','.join(mem_list)
-        else:
-            return str(sm_size)
-
-    def devices(self):
-        '''List of PCI devices for use by DPDK'''
-        pci_devices = resolve_dpdk_bridges()
-        pci_devices.update(resolve_dpdk_bonds())
-        return pci_devices
-
-    def _formatted_whitelist(self, flag):
-        '''Flag formatted list of devices to whitelist
-
-        :param flag: flag format to use
-        :type flag: str
-        :rtype: str
-        '''
-        whitelist = []
-        for device in self.devices():
-            whitelist.append(flag.format(device=device))
-        return ' '.join(whitelist)
-
-    def device_whitelist(self):
-        '''
-        Formatted list of devices to whitelist for dpdk
-        using the old style '-w' flag
-
-        :rtype: str
-        '''
-        return self._formatted_whitelist('-w {device}')
-
-    def pci_whitelist(self):
-        '''
-        Formatted list of devices to whitelist for dpdk
-        using the new style '--pci-whitelist' flag
-
-        :rtype: str
-        '''
-        return self._formatted_whitelist('--pci-whitelist {device}')
-
-    def __call__(self):
-        ctxt = {}
-        whitelist = self.device_whitelist()
-        if whitelist:
-            ctxt['dpdk_enabled'] = config('enable-dpdk')
-            ctxt['device_whitelist'] = self.device_whitelist()
-            ctxt['socket_memory'] = self.socket_memory()
-            ctxt['cpu_mask'] = self.cpu_mask()
         return ctxt
 
 

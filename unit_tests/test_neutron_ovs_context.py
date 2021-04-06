@@ -14,10 +14,9 @@
 
 from test_utils import CharmTestCase
 from test_utils import patch_open
-from mock import patch, Mock
+from mock import patch
 import neutron_ovs_context as context
 import charmhelpers
-import copy
 
 _LSB_RELEASE_XENIAL = {
     'DISTRIB_CODENAME': 'xenial',
@@ -32,8 +31,6 @@ TO_PATCH = [
     'unit_get',
     'get_host_ip',
     'network_get_primary_address',
-    'glob',
-    'PCINetDevices',
     'relation_ids',
     'relation_get',
     'related_units',
@@ -625,194 +622,6 @@ class SharedSecretContext(CharmTestCase):
         _NeutronAPIContext.side_effect = fake_context({'enable_dvr': False})
         _shared_secret.return_value = 'secret_thing'
         self.assertEqual(context.SharedSecretContext()(), {})
-
-
-class MockPCIDevice(object):
-    '''Simple wrapper to mock pci.PCINetDevice class'''
-    def __init__(self, address):
-        self.pci_address = address
-
-
-TEST_CPULIST_1 = "0-3"
-TEST_CPULIST_2 = "0-7,16-23"
-TEST_CPULIST_3 = "0,4,8,12,16,20,24"
-DPDK_DATA_PORTS = (
-    "br-phynet3:fe:16:41:df:23:fe "
-    "br-phynet1:fe:16:41:df:23:fd "
-    "br-phynet2:fe:f2:d0:45:dc:66"
-)
-BOND_MAPPINGS = (
-    "bond0:fe:16:41:df:23:fe "
-    "bond0:fe:16:41:df:23:fd "
-    "bond1:fe:f2:d0:45:dc:66"
-)
-PCI_DEVICE_MAP = {
-    'fe:16:41:df:23:fd': MockPCIDevice('0000:00:1c.0'),
-    'fe:16:41:df:23:fe': MockPCIDevice('0000:00:1d.0'),
-}
-
-
-class TestDPDKUtils(CharmTestCase):
-
-    def setUp(self):
-        super(TestDPDKUtils, self).setUp(context, TO_PATCH)
-        self.config.side_effect = self.test_config.get
-
-    def test_parse_cpu_list(self):
-        self.assertEqual(context.parse_cpu_list(TEST_CPULIST_1),
-                         [0, 1, 2, 3])
-        self.assertEqual(context.parse_cpu_list(TEST_CPULIST_2),
-                         [0, 1, 2, 3, 4, 5, 6, 7,
-                          16, 17, 18, 19, 20, 21, 22, 23])
-        self.assertEqual(context.parse_cpu_list(TEST_CPULIST_3),
-                         [0, 4, 8, 12, 16, 20, 24])
-
-    @patch.object(context, 'parse_cpu_list', wraps=context.parse_cpu_list)
-    def test_numa_node_cores(self, _parse_cpu_list):
-        self.glob.glob.return_value = [
-            '/sys/devices/system/node/node0'
-        ]
-        with patch_open() as (_, mock_file):
-            mock_file.read.return_value = TEST_CPULIST_1
-            self.assertEqual(context.numa_node_cores(),
-                             {'0': [0, 1, 2, 3]})
-        self.glob.glob.assert_called_with('/sys/devices/system/node/node*')
-        _parse_cpu_list.assert_called_with(TEST_CPULIST_1)
-
-    def test_resolve_dpdk_bridges(self):
-        self.test_config.set('data-port', DPDK_DATA_PORTS)
-        _pci_devices = Mock()
-        _pci_devices.get_device_from_mac.side_effect = PCI_DEVICE_MAP.get
-        self.PCINetDevices.return_value = _pci_devices
-        self.assertEqual(context.resolve_dpdk_bridges(),
-                         {'0000:00:1c.0': 'br-phynet1',
-                          '0000:00:1d.0': 'br-phynet3'})
-
-    def test_resolve_dpdk_bonds(self):
-        self.test_config.set('dpdk-bond-mappings', BOND_MAPPINGS)
-        _pci_devices = Mock()
-        _pci_devices.get_device_from_mac.side_effect = PCI_DEVICE_MAP.get
-        self.PCINetDevices.return_value = _pci_devices
-        self.assertEqual(context.resolve_dpdk_bonds(),
-                         {'0000:00:1c.0': 'bond0',
-                          '0000:00:1d.0': 'bond0'})
-
-
-DPDK_PATCH = [
-    'parse_cpu_list',
-    'numa_node_cores',
-    'resolve_dpdk_bridges',
-    'resolve_dpdk_bonds',
-    'glob',
-]
-
-NUMA_CORES_SINGLE = {
-    '0': [0, 1, 2, 3]
-}
-
-NUMA_CORES_MULTI = {
-    '0': [0, 1, 2, 3],
-    '1': [4, 5, 6, 7]
-}
-
-
-class TestOVSDPDKDeviceContext(CharmTestCase):
-
-    def setUp(self):
-        super(TestOVSDPDKDeviceContext, self).setUp(context,
-                                                    TO_PATCH + DPDK_PATCH)
-        self.config.side_effect = self.test_config.get
-        self.test_context = context.OVSDPDKDeviceContext()
-        self.test_config.set('enable-dpdk', True)
-
-    def test_device_whitelist(self):
-        '''Test device whitelist generation'''
-        self.resolve_dpdk_bridges.return_value = {
-            '0000:00:1c.0': 'br-data',
-            '0000:00:1d.0': 'br-data',
-        }
-        self.assertEqual(self.test_context.device_whitelist(),
-                         '-w 0000:00:1c.0 -w 0000:00:1d.0')
-
-    def test_socket_memory(self):
-        '''Test socket memory configuration'''
-        self.glob.glob.return_value = ['a']
-        self.assertEqual(self.test_context.socket_memory(),
-                         '1024')
-
-        self.glob.glob.return_value = ['a', 'b']
-        self.assertEqual(self.test_context.socket_memory(),
-                         '1024,1024')
-
-        self.test_config.set('dpdk-socket-memory', 2048)
-        self.assertEqual(self.test_context.socket_memory(),
-                         '2048,2048')
-
-    def test_cpu_mask(self):
-        '''Test generation of hex CPU masks'''
-        self.numa_node_cores.return_value = NUMA_CORES_SINGLE
-        self.assertEqual(self.test_context.cpu_mask(), '0x01')
-
-        self.numa_node_cores.return_value = NUMA_CORES_MULTI
-        self.assertEqual(self.test_context.cpu_mask(), '0x11')
-
-        self.test_config.set('dpdk-socket-cores', 2)
-        self.assertEqual(self.test_context.cpu_mask(), '0x33')
-
-    def test_context_no_devices(self):
-        '''Ensure that DPDK is disable when no devices detected'''
-        self.resolve_dpdk_bridges.return_value = {}
-        self.assertEqual(self.test_context(), {})
-
-    def test_context_devices(self):
-        '''Ensure DPDK is enabled when devices are detected'''
-        self.resolve_dpdk_bridges.return_value = {
-            '0000:00:1c.0': 'br-data',
-            '0000:00:1d.0': 'br-data',
-        }
-        self.resolve_dpdk_bonds.return_value = {}
-        self.numa_node_cores.return_value = NUMA_CORES_SINGLE
-        self.glob.glob.return_value = ['a']
-        self.assertEqual(self.test_context(), {
-            'cpu_mask': '0x01',
-            'device_whitelist': '-w 0000:00:1c.0 -w 0000:00:1d.0',
-            'dpdk_enabled': True,
-            'socket_memory': '1024'
-        })
-
-
-class TestDPDKDeviceContext(CharmTestCase):
-
-    _dpdk_bridges = {
-        '0000:00:1c.0': 'br-data',
-        '0000:00:1d.0': 'br-physnet1',
-    }
-    _dpdk_bonds = {
-        '0000:00:1c.1': 'dpdk-bond0',
-        '0000:00:1d.1': 'dpdk-bond0',
-    }
-
-    def setUp(self):
-        super(TestDPDKDeviceContext, self).setUp(context,
-                                                 TO_PATCH + DPDK_PATCH)
-        self.config.side_effect = self.test_config.get
-        self.test_context = context.DPDKDeviceContext()
-        self.resolve_dpdk_bridges.return_value = self._dpdk_bridges
-        self.resolve_dpdk_bonds.return_value = self._dpdk_bonds
-
-    def test_context(self):
-        self.test_config.set('dpdk-driver', 'uio_pci_generic')
-        devices = copy.deepcopy(self._dpdk_bridges)
-        devices.update(self._dpdk_bonds)
-        self.assertEqual(self.test_context(), {
-            'devices': devices,
-            'driver': 'uio_pci_generic'
-        })
-        self.config.assert_called_with('dpdk-driver')
-
-    def test_context_none_driver(self):
-        self.assertEqual(self.test_context(), {})
-        self.config.assert_called_with('dpdk-driver')
 
 
 class TestRemoteRestartContext(CharmTestCase):
