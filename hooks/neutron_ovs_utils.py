@@ -36,13 +36,14 @@ from collections import OrderedDict
 import neutron_ovs_context
 from charmhelpers.contrib.network.ovs import (
     add_bridge,
-    add_bridge_port,
     add_bridge_bond,
+    add_bridge_port,
     is_linuxbridge_interface,
     add_ovsbridge_linuxbridge,
     full_restart,
     enable_ipfix,
     disable_ipfix,
+    generate_external_ids,
 )
 from charmhelpers.core.hookenv import (
     config,
@@ -596,6 +597,15 @@ def purge_sriov_systemd_files():
 
 
 def configure_ovs():
+    """Configure the OVS plugin.
+
+    This function uses the config.yaml parameters ext-port, data-port and
+    bridge-mappings to configure the bridges and ports on the ovs on the
+    unit.
+
+    Note that the ext-port is deprecated and data-port/bridge-mappings are
+    preferred.
+    """
     status_set('maintenance', 'Configuring ovs')
     if not service_running('openvswitch-switch'):
         full_restart()
@@ -604,6 +614,7 @@ def configure_ovs():
     brdata = {
         'datapath-type': determine_datapath_type(),
     }
+    brdata.update(generate_external_ids())
 
     add_bridge(INT_BRIDGE, brdata=brdata)
     add_bridge(EXT_BRIDGE, brdata=brdata)
@@ -612,7 +623,9 @@ def configure_ovs():
     if use_dvr():
         ext_port_ctx = ExternalPortContext()()
     if ext_port_ctx and ext_port_ctx['ext_port']:
-        add_bridge_port(EXT_BRIDGE, ext_port_ctx['ext_port'])
+        add_bridge_port(EXT_BRIDGE, ext_port_ctx['ext_port'],
+                        ifdata=generate_external_ids(EXT_BRIDGE),
+                        portdata=generate_external_ids(EXT_BRIDGE))
 
     modern_ovs = ovs_has_late_dpdk_init()
 
@@ -634,9 +647,14 @@ def configure_ovs():
             for port, _br in portmaps.items():
                 if _br == br:
                     if not is_linuxbridge_interface(port):
-                        add_bridge_port(br, port, promisc=True)
+                        add_bridge_port(
+                            br, port, promisc=True,
+                            ifdata=generate_external_ids(br),
+                            portdata=generate_external_ids(br))
                     else:
-                        add_ovsbridge_linuxbridge(br, port)
+                        add_ovsbridge_linuxbridge(
+                            br, port, ifdata=generate_external_ids(br),
+                            portdata=generate_external_ids(br))
 
     # NOTE(jamespage):
     # hw-offload and dpdk are mutually exclusive so log and error
@@ -671,22 +689,27 @@ def configure_ovs():
                 for port in port_iface_map.keys():
                     ifdatamap = bridge_port_interface_map.get_ifdatamap(
                         br, port)
+                    # set external-ids for all interfaces
+                    for iface in ifdatamap:
+                        ifdatamap[iface].update(generate_external_ids(br))
                     # NOTE: DPDK bonds are referenced by name and can be found
                     #       in the data-port config, regular DPDK ports are
                     #       referenced by MAC addresses and their names should
                     #       never be found in data-port
                     if port in portmaps.keys():
+                        portdata = bond_config.get_ovs_portdata(port)
+                        portdata.update(generate_external_ids(br))
                         log('Adding DPDK bond: {}({}) to bridge: {}'.format(
                             port, list(ifdatamap.keys()), br), level=DEBUG)
                         add_bridge_bond(
                             br, port, list(ifdatamap.keys()),
-                            portdata=bond_config.get_ovs_portdata(port),
-                            ifdatamap=ifdatamap)
+                            portdata=portdata, ifdatamap=ifdatamap)
                     else:
                         log('Adding DPDK port: {} to bridge: {}'.format(
                             port, br), level=DEBUG)
                         ifdata = ifdatamap[port]
                         add_bridge_port(br, port, ifdata=ifdata,
+                                        portdata=generate_external_ids(br),
                                         linkup=False, promisc=None)
         if not modern_ovs:
             # port enumeration in legacy OVS-DPDK must follow alphabetic order
@@ -701,12 +724,14 @@ def configure_ovs():
                         'type': 'dpdk',
                         'mtu-request': global_mtu
                     }
+                    ifdata.update(generate_external_ids(mac.entity))
                     ifname = 'dpdk{}'.format(dev_idx)
                     log('Adding DPDK port {}:{} to bridge {}'.format(
                         ifname, ifdata, mac.entity), level=DEBUG)
                     add_bridge_port(
-                        mac.entity, ifname, ifdata=ifdata, linkup=False,
-                        promisc=None)
+                        mac.entity, ifname, ifdata=ifdata,
+                        portdata=generate_external_ids(mac.entity),
+                        linkup=False, promisc=None)
                 else:
                     log('DPDK device {} skipped, {} is not a bridge'.format(
                         pci, mac.entity), level=WARNING)
@@ -885,7 +910,8 @@ def assess_status_func(configs, exclude_services=None):
     return make_assess_status_func(
         configs, required_interfaces,
         charm_func=validate_ovs_use_veth,
-        services=services(exclude_services), ports=None)
+        services=services(exclude_services),
+        ports=None)
 
 
 def pause_unit_helper(configs, exclude_services=None):
@@ -924,5 +950,4 @@ def _pause_resume_helper(f, configs, exclude_services=None):
     if exclude_services is None:
         exclude_services = []
     f(assess_status_func(configs, exclude_services),
-      services=services(exclude_services),
-      ports=None)
+      services=services(exclude_services), ports=None)

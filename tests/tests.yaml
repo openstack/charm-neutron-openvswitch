@@ -57,8 +57,10 @@ target_deploy_status:
 tests:
   - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOpenvSwitchTest
+  - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
   - migrate-ovn:
     - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
+    - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
     - zaza.openstack.charm_tests.ovn.tests.OVSOVNMigrationTest
     - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
 tests_options:
