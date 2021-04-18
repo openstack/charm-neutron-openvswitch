@@ -63,7 +63,7 @@ NOTE: Existing deployments using os-data-network configuration options will cont
 
 # DPDK fast packet processing support
 
-For OpenStack Mitaka running on Ubuntu 16.04, its possible to use experimental DPDK userspace network acceleration with Open vSwitch and OpenStack.
+For OpenStack Mitaka running on Ubuntu 16.04, it's possible to use experimental DPDK userspace network acceleration with Open vSwitch and OpenStack.
 
 Currently, this charm supports use of DPDK enabled devices in bridges supporting connectivity to provider networks.
 
@@ -90,7 +90,7 @@ By default, the charm will configure Open vSwitch/DPDK to consume a processor co
 
 # DPDK bonding
 
-For deployments using Open vSwitch 2.6.0 or later (OpenStack Ocata on Ubuntu 16.04 onwards), its also possible to use native Open vSwitch DPDK bonding to provide increased resilience for DPDK based deployments.
+For deployments using Open vSwitch 2.6.0 or later (OpenStack Ocata on Ubuntu 16.04 onwards), it's also possible to use native Open vSwitch DPDK bonding to provide increased resilience for DPDK based deployments.
 
 This feature is configured using the `dpdk-bond-mappings` and `dpdk-bond-config` options of this charm, for example:
 
