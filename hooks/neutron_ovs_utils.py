@@ -185,6 +185,10 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['neutron-openvswitch-agent'],
         'contexts': [neutron_ovs_context.OVSPluginContext()],
     }),
+    (OVS_DEFAULT, {
+        'services': ['openvswitch-switch'],
+        'contexts': [neutron_ovs_context.OVSPluginContext()],
+    }),
     (PHY_NIC_MTU_CONF, {
         'services': ['os-charm-phy-nic-mtu'],
         'contexts': [context.PhyNICMTUContext()],
