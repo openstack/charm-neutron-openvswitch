@@ -569,10 +569,13 @@ class TestNeutronOVSUtils(CharmTestCase):
     @patch.object(nutils, 'use_l3ha')
     @patch.object(nutils, 'use_dpdk')
     @patch.object(nutils, 'use_dvr')
-    def test_restart_map(self, mock_use_dvr, mock_use_dpdk, mock_use_l3ha):
+    @patch.object(nutils, 'enable_local_dhcp')
+    def test_restart_map(self, mock_enable_local_dhcp, mock_use_dvr,
+                         mock_use_dpdk, mock_use_l3ha):
         mock_use_dvr.return_value = False
         mock_use_l3ha.return_value = False
         mock_use_dpdk.return_value = False
+        mock_enable_local_dhcp.return_value = False
         self.os_release.return_value = "mitaka"
         self.lsb_release.return_value = {'DISTRIB_CODENAME': 'xenial'}
         ML2CONF = "/etc/neutron/plugins/ml2/openvswitch_agent.ini"
@@ -580,7 +583,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         expect = OrderedDict([
             (nutils.NEUTRON_CONF, ['neutron-openvswitch-agent']),
             (ML2CONF, ['neutron-openvswitch-agent']),
-            (nutils.OVS_DEFAULT, ['openvswitch-switch']),
+            (nutils.OVS_DEFAULT, ['openvswitch-switch'])
         ])
         for item in _restart_map:
             self.assertTrue(item in _restart_map)
