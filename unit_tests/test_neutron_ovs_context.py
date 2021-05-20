@@ -275,7 +275,7 @@ class OVSPluginContextTest(CharmTestCase):
             'nsg_log_output_base': None,
             'nsg_log_rate_limit': None,
             'nsg_log_burst_limit': 25,
-            'keepalived_healthcheck_interval': 30,
+            'keepalived_healthcheck_interval': 0,
             'of_inactivity_probe': 10,
             'disable_mlockall': False,
         }
