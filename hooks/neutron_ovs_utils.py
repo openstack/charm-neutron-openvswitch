@@ -700,6 +700,10 @@ def configure_ovs():
                             ifdata=generate_external_ids(br),
                             portdata=generate_external_ids(br))
                     else:
+                        log('{} is a Linux bridge: using Linux bridges in the '
+                            'data-port config is deprecated for removal after '
+                            '21.10 release of OpenStack charms.'.format(port),
+                            level=WARNING)
                         add_ovsbridge_linuxbridge(
                             br, port, ifdata=generate_external_ids(br),
                             portdata=generate_external_ids(br))
