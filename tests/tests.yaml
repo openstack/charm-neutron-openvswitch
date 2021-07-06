@@ -43,6 +43,10 @@ configure_options:
 
 target_deploy_status:
   neutron-api-plugin-ovn:
+    # NOTE(lourot): at first we deploy a bundle in which this subordinate charm
+    # isn't related to anything, so it has no unit. It will become related and
+    # receive units later as part of OVSOVNMigrationTest.
+    num-expected-units: 0
     workload-status: waiting
   ovn-chassis:
     workload-status: maintenance
