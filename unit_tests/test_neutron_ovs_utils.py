@@ -1216,7 +1216,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         )
         self.deferrable_svc_restart.assert_called_with(
             'openvswitch-switch',
-            restart_reason='DPDK Config changed')
+            reason='DPDK Config changed')
 
     @patch.object(nutils, 'is_unit_paused_set')
     @patch.object(nutils.subprocess, 'check_call')
@@ -1251,7 +1251,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         )
         self.deferrable_svc_restart.assert_called_with(
             'openvswitch-switch',
-            restart_reason='DPDK Config changed')
+            reason='DPDK Config changed')
 
     @patch.object(nutils.context, 'NeutronAPIContext')
     @patch.object(nutils, 'is_container')
@@ -1322,7 +1322,7 @@ class TestNeutronOVSUtils(CharmTestCase):
         ])
         self.deferrable_svc_restart.assert_called_once_with(
             'openvswitch-switch',
-            restart_reason='Hardware offload config changed')
+            reason='Hardware offload config changed')
 
     @patch.object(nutils, 'set_Open_vSwitch_column_value')
     def test_enable_hw_offload_unit_paused(self, _ovs_set):

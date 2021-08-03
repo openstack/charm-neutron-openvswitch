@@ -590,7 +590,7 @@ def enable_ovs_dpdk():
             not is_unit_paused_set()):
         deferrable_svc_restart(
             'openvswitch-switch',
-            restart_reason='DPDK Config changed')
+            reason='DPDK Config changed')
 
 
 def enable_hw_offload():
@@ -605,7 +605,7 @@ def enable_hw_offload():
             not is_unit_paused_set()):
         deferrable_svc_restart(
             'openvswitch-switch',
-            restart_reason='Hardware offload config changed')
+            reason='Hardware offload config changed')
 
 
 def install_tmpfilesd():
