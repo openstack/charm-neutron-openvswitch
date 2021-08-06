@@ -35,7 +35,7 @@ WARNING: this feature allows you to effectively disable security on your cloud!
 This charm has a configuration option to allow users to disable any per-instance security group management; this must used with neutron-security-groups enabled in the neutron-api charm and could be used to turn off security on selected set of compute nodes:
 
     juju deploy neutron-openvswitch neutron-openvswitch-insecure
-    juju set neutron-openvswitch-insecure disable-security-groups=True prevent-arp-spoofing=False
+    juju config neutron-openvswitch-insecure disable-security-groups=True prevent-arp-spoofing=False
     juju deploy nova-compute nova-compute-insecure
     juju add-relation nova-compute-insecure neutron-openvswitch-insecure
     ...
