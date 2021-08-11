@@ -147,6 +147,7 @@ PURGE_PACKAGES = [
 PHY_NIC_MTU_CONF = '/etc/init/os-charm-phy-nic-mtu.conf'
 TEMPLATES = 'templates/'
 OVS_DEFAULT = '/etc/default/openvswitch-switch'
+NEUTRON_DHCP_DEFAULT = '/etc/default/neutron-dhcp-agent'
 DPDK_INTERFACES = '/etc/dpdk/interfaces'
 NEUTRON_SRIOV_AGENT_CONF = os.path.join(NEUTRON_CONF_DIR,
                                         'plugins/ml2/sriov_agent.ini')
@@ -208,6 +209,10 @@ DHCP_RESOURCE_MAP = OrderedDict([
         'contexts': [DHCPAgentContext()],
     }),
     (NEUTRON_DNSMASQ_CONF, {
+        'services': ['neutron-dhcp-agent'],
+        'contexts': [DHCPAgentContext()],
+    }),
+    (NEUTRON_DHCP_DEFAULT, {
         'services': ['neutron-dhcp-agent'],
         'contexts': [DHCPAgentContext()],
     }),
@@ -387,6 +392,8 @@ def resource_map():
     """
     drop_config = []
     resource_map = deepcopy(BASE_RESOURCE_MAP)
+    # Remap any service names as required
+    _os_release = os_release('neutron-common', base='icehouse')
     if use_dvr():
         resource_map.update(DVR_RESOURCE_MAP)
         resource_map.update(METADATA_RESOURCE_MAP)
@@ -397,8 +404,8 @@ def resource_map():
         resource_map.update(DHCP_RESOURCE_MAP)
         metadata_services = ['neutron-metadata-agent', 'neutron-dhcp-agent']
         resource_map[NEUTRON_CONF]['services'] += metadata_services
-    # Remap any service names as required
-    _os_release = os_release('neutron-common', base='icehouse')
+        if use_dpdk() and CompareOpenStackReleases(_os_release) >= 'queens':
+            resource_map[OVS_CONF]['services'] += ['neutron-dhcp-agent']
     if CompareOpenStackReleases(_os_release) >= 'mitaka':
         # ml2_conf.ini -> openvswitch_agent.ini
         drop_config.append(ML2_CONF)
