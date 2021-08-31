@@ -372,10 +372,10 @@ class L3AgentContextTest(CharmTestCase):
         rdata = {
             'neutron-security-groups': 'True',
             'enable-dvr': 'True',
+            'enable-fwaas': 'True',
             'l2-population': 'True',
             'overlay-network-type': 'vxlan',
             'network-device-mtu': 1500,
-            'l3_extension_plugins': 'fwaas_v2',
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         self.assertEqual(
@@ -440,12 +440,12 @@ class L3AgentContextTest(CharmTestCase):
         rdata = {
             'neutron-security-groups': 'True',
             'enable-dvr': 'True',
+            'enable-fwaas': 'True',
             'l2-population': 'True',
             'overlay-network-type': 'vxlan',
             'network-device-mtu': 1500,
             'enable-nfg-logging': 'True',
             'use_l3ha': False,
-            'l3_extension_plugins': 'fwaas_v2,fwaas_v2_log',
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         _validate_nfg_log_path.side_effect = lambda x: x
@@ -482,11 +482,11 @@ class L3AgentContextTest(CharmTestCase):
         rdata = {
             'neutron-security-groups': 'True',
             'enable-dvr': 'True',
+            'enable-fwaas': 'True',
             'l2-population': 'True',
             'overlay-network-type': 'vxlan',
             'network-device-mtu': 1500,
             'enable-nfg-logging': 'True',
-            'l3_extension_plugins': 'fwaas_v2,fwaas_v2_log',
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         _validate_nfg_log_path.side_effect = lambda x: x
@@ -522,10 +522,10 @@ class L3AgentContextTest(CharmTestCase):
         rdata = {
             'neutron-security-groups': 'True',
             'enable-dvr': 'True',
+            'enable-fwaas': 'True',
             'l2-population': 'True',
             'overlay-network-type': 'vxlan',
             'network-device-mtu': 1500,
-            'l3_extension_plugins': 'fwaas_v2,fwaas_v2_log',
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         self.assertEqual(
@@ -555,10 +555,10 @@ class L3AgentContextTest(CharmTestCase):
         rdata = {
             'neutron-security-groups': 'True',
             'enable-dvr': 'False',
+            'enable-fwaas': 'True',
             'l2-population': 'True',
             'overlay-network-type': 'vxlan',
             'network-device-mtu': 1500,
-            'l3_extension_plugins': 'fwaas_v2',
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         self.assertEqual(context.L3AgentContext()(), {

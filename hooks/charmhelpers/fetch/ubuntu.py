@@ -208,6 +208,14 @@ CLOUD_ARCHIVE_POCKETS = {
     'wallaby/proposed': 'focal-proposed/wallaby',
     'focal-wallaby/proposed': 'focal-proposed/wallaby',
     'focal-proposed/wallaby': 'focal-proposed/wallaby',
+    # Xena
+    'xena': 'focal-updates/xena',
+    'focal-xena': 'focal-updates/xena',
+    'focal-xena/updates': 'focal-updates/xena',
+    'focal-updates/xena': 'focal-updates/xena',
+    'xena/proposed': 'focal-proposed/xena',
+    'focal-xena/proposed': 'focal-proposed/xena',
+    'focal-proposed/xena': 'focal-proposed/xena',
     # Yoga
     'yoga': 'focal-updates/yoga',
     'focal-yoga': 'focal-updates/yoga',
@@ -272,7 +280,7 @@ UBUNTU_OPENSTACK_RELEASE = OrderedDict([
 
 APT_NO_LOCK = 100  # The return code for "couldn't acquire lock" in APT.
 CMD_RETRY_DELAY = 10  # Wait 10 seconds between command retries.
-CMD_RETRY_COUNT = 3  # Retry a failing fatal command X times.
+CMD_RETRY_COUNT = 10  # Retry a failing fatal command X times.
 
 
 def filter_installed_packages(packages):
@@ -734,7 +742,8 @@ def _add_apt_repository(spec):
         series = get_distrib_codename()
         spec = spec.replace('{series}', series)
     _run_with_retries(['add-apt-repository', '--yes', spec],
-                      cmd_env=env_proxy_settings(['https', 'http']))
+                      cmd_env=env_proxy_settings(['https', 'http', 'no_proxy'])
+                      )
 
 
 def _add_cloud_pocket(pocket):

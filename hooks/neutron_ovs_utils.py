@@ -329,12 +329,16 @@ def determine_packages():
         pkgs.extend(plugin_pkg)
     if use_dvr():
         pkgs.extend(DVR_PACKAGES)
-        py3_pkgs.append('python3-neutron-fwaas')
         _os_release = os_release('neutron-common', base='icehouse')
         # per 17.08 release notes L3HA + DVR is a Newton+ feature
         if (use_l3ha() and
                 CompareOpenStackReleases(_os_release) >= 'newton'):
             pkgs.extend(L3HA_PACKAGES)
+        # python3-neutron-fwaas is already dependency package on
+        # neutron-l3-agent. However this need to be added to py3_pkgs
+        # to support switch from py2 to py3 in Rocky release.
+        if CompareOpenStackReleases(_os_release) == 'rocky':
+            py3_pkgs.append('python3-neutron-fwaas')
     if enable_local_dhcp():
         pkgs.extend(DHCP_PACKAGES)
         pkgs.extend(METADATA_PACKAGES)
