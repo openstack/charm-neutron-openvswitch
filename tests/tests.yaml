@@ -24,6 +24,10 @@ dev_bundles:
   - xenial-pike
   - xenial-queens-dvr-snat
   - bionic-rocky-dvr-snat
+  - migrate-ovn: focal-wallaby-dvr-snat
+  - migrate-ovn: focal-xena-dvr-snat
+  - migrate-ovn: hirstute-wallaby-dvr-snat
+  - migrate-ovn: impish-xena-dvr-snat
 
 configure:
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
@@ -78,3 +82,4 @@ tests_options:
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
     - groovy-victoria-dvr-snat
+    - impish-xena-dvr-snat
