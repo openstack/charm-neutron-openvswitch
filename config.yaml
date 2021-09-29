@@ -195,7 +195,8 @@ options:
     type: int
     default: 1
     description: |
-      Number of cores to allocate to DPDK per NUMA socket in deployed systems.
+      Number of cores to allocate to non-datapath DPDK threads per NUMA
+      socket in deployed systems.
       .
       Only used when DPDK is enabled.
   dpdk-driver:
