@@ -27,19 +27,25 @@ machines:
 # time, given that machine "0" comes up way before machine "7"
 applications:
   keystone-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   nova-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   glance-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   neutron-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   placement-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   mysql-innodb-cluster:
-    charm: cs:~openstack-charmers-next/mysql-innodb-cluster
+    charm: cs:~openstack-charmers/mysql-innodb-cluster
     num_units: 3
     options:
       source: *openstack-origin
@@ -47,15 +53,17 @@ applications:
       - '0'
       - '1'
       - '2'
+    channel: candidate
   rabbitmq-server:
-    charm: cs:~openstack-charmers-next/rabbitmq-server
+    charm: cs:~openstack-charmers/rabbitmq-server
     num_units: 1
     options:
       source: *openstack-origin
     to:
       - '3'
+    channel: candidate
   neutron-api:
-    charm: cs:~openstack-charmers-next/neutron-api
+    charm: cs:~openstack-charmers/neutron-api
     series: *series
     num_units: 1
     options:
@@ -68,20 +76,23 @@ applications:
       enable-dvr: True
     to:
       - '4'
+    channel: candidate
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: cs:~openstack-charmers/keystone
     num_units: 1
     options:
       openstack-origin: *openstack-origin
     to:
       - '5'
+    channel: candidate
   glance:
-    charm: cs:~openstack-charmers-next/glance
+    charm: cs:~openstack-charmers/glance
     num_units: 1
     options:
       openstack-origin: *openstack-origin
     to:
       - '6'
+    channel: candidate
   neutron-openvswitch:
     charm: ../../../neutron-openvswitch
     options:
@@ -89,15 +100,16 @@ applications:
       bridge-mappings: physnet1:br-ex
       enable-local-dhcp-and-metadata: True
   nova-cloud-controller:
-    charm: cs:~openstack-charmers-next/nova-cloud-controller
+    charm: cs:~openstack-charmers/nova-cloud-controller
     num_units: 1
     options:
       network-manager: Neutron
       openstack-origin: *openstack-origin
     to:
       - '7'
+    channel: candidate
   nova-compute:
-    charm: cs:~openstack-charmers-next/nova-compute
+    charm: cs:~openstack-charmers/nova-compute
     num_units: 2
     options:
       config-flags: default_ephemeral_format=ext4
@@ -108,34 +120,41 @@ applications:
     to:
       - '8'
       - '9'
+    channel: candidate
   placement:
-    charm: cs:~openstack-charmers-next/placement
+    charm: cs:~openstack-charmers/placement
     num_units: 1
     options:
       openstack-origin: *openstack-origin
     to:
       - '10'
+    channel: candidate
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: cs:~openstack-charmers/vault
     num_units: 1
     to:
       - '11'
+    channel: candidate
   ovn-central:
-    charm: cs:~openstack-charmers-next/ovn-central
+    charm: cs:~openstack-charmers/ovn-central
     num_units: 3
     options:
       source: *openstack-origin
     to:
       - '12'
+    channel: candidate
   neutron-api-plugin-ovn:
-    charm: cs:~openstack-charmers-next/neutron-api-plugin-ovn
+    charm: cs:~openstack-charmers/neutron-api-plugin-ovn
+    channel: candidate
   ovn-chassis:
-    charm: cs:~openstack-charmers-next/ovn-chassis
+    charm: cs:~openstack-charmers/ovn-chassis
     options:
       # start new units paused to allow unit by unit OVS to OVN migration
       new-units-paused: true
+    channel: candidate
 relations:
   - - 'neutron-api:amqp'
     - 'rabbitmq-server:amqp'
