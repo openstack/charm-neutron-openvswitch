@@ -26,7 +26,6 @@ applications:
       source: *openstack-origin
     to:
       - '0'
-    channel: candidate
   rabbitmq-server:
     charm: cs:~openstack-charmers/rabbitmq-server
     num_units: 1
@@ -34,7 +33,6 @@ applications:
       source: *openstack-origin
     to:
       - '1'
-    channel: candidate
   neutron-api:
     charm: cs:~openstack-charmers/neutron-api
     series: *series
@@ -48,7 +46,6 @@ applications:
       enable-dvr: True
     to:
       - '2'
-    channel: candidate
   keystone:
     charm: cs:~openstack-charmers/keystone
     num_units: 1
@@ -56,7 +53,6 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '3'
-    channel: candidate
   glance:
     charm: cs:~openstack-charmers/glance
     num_units: 1
@@ -64,7 +60,6 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '4'
-    channel: candidate
   neutron-openvswitch:
     charm: ../../../neutron-openvswitch
     options:
@@ -79,7 +74,6 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '5'
-    channel: candidate
   nova-compute:
     charm: cs:~openstack-charmers/nova-compute
     num_units: 2
@@ -92,7 +86,6 @@ applications:
     to:
       - '6'
       - '7'
-    channel: candidate
 relations:
   - - 'neutron-api:shared-db'
     - 'percona-cluster:shared-db'
