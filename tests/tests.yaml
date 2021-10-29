@@ -9,25 +9,21 @@ smoke_bundles:
   - migrate-ovn: focal-ussuri-dvr-snat
 
 gate_bundles:
-  - xenial-mitaka
   - bionic-queens-dvr-snat
   - bionic-stein-dvr-snat
-  - bionic-train-dvr-snat
   - bionic-ussuri-dvr-snat
   - migrate-ovn: focal-ussuri-dvr-snat
   - migrate-ovn: focal-victoria-dvr-snat
-  - migrate-ovn: groovy-victoria-dvr-snat
-
-dev_bundles:
-  - trusty-mitaka
-  - xenial-ocata
-  - xenial-pike
-  - xenial-queens-dvr-snat
-  - bionic-rocky-dvr-snat
   - migrate-ovn: focal-wallaby-dvr-snat
   - migrate-ovn: focal-xena-dvr-snat
-  - migrate-ovn: hirstute-wallaby-dvr-snat
+  - migrate-ovn: hirsute-wallaby-dvr-snat
   - migrate-ovn: impish-xena-dvr-snat
+
+dev_bundles:
+  - bionic-rocky-dvr-snat
+  - bionic-train-dvr-snat
+  - migrate-ovn: focal-yoga-dvr-snat
+  - migrate-ovn: jammy-yoga-dvr-snat
 
 configure:
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
@@ -81,5 +77,6 @@ tests_options:
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
-    - groovy-victoria-dvr-snat
+    - hirsute-wallaby-dvr-snat
     - impish-xena-dvr-snat
+    - jammy-yoga-dvr-snat
