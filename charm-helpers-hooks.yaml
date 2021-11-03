@@ -13,3 +13,4 @@ include:
     - contrib.network.ip
     - contrib.python
     - contrib.openstack.policyd
+    - contrib.charmsupport

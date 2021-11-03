@@ -25,6 +25,9 @@ series:
 extra-bindings:
   data:
 provides:
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
   neutron-plugin:
     interface: neutron-plugin
     scope: container
