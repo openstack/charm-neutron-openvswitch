@@ -6,6 +6,7 @@ bin
 tags
 *.sw[nop]
 *.pyc
+*.charm
 .unit-state.db
 .pydevproject
 func-results.json

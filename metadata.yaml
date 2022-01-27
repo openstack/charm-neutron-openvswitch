@@ -17,10 +17,7 @@ description: |
 tags:
 - openstack
 series:
-- bionic
 - focal
-- groovy
-- hirsute
 - impish
 extra-bindings:
   data:

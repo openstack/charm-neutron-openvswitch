@@ -6,22 +6,13 @@ charm_name: neutron-openvswitch
 # OVS to OVN.
 
 smoke_bundles:
-  - migrate-ovn: focal-ussuri-dvr-snat
+  - migrate-ovn: focal-xena-dvr-snat
 
 gate_bundles:
-  - bionic-queens-dvr-snat
-  - bionic-stein-dvr-snat
-  - bionic-ussuri-dvr-snat
-  - migrate-ovn: focal-ussuri-dvr-snat
-  - migrate-ovn: focal-victoria-dvr-snat
-  - migrate-ovn: focal-wallaby-dvr-snat
   - migrate-ovn: focal-xena-dvr-snat
-  - migrate-ovn: hirsute-wallaby-dvr-snat
   - migrate-ovn: impish-xena-dvr-snat
 
 dev_bundles:
-  - bionic-rocky-dvr-snat
-  - bionic-train-dvr-snat
   - migrate-ovn: focal-yoga-dvr-snat
   - migrate-ovn: jammy-yoga-dvr-snat
 
@@ -77,6 +68,5 @@ tests_options:
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
-    - hirsute-wallaby-dvr-snat
     - impish-xena-dvr-snat
     - jammy-yoga-dvr-snat
