@@ -1,7 +1,7 @@
 - project:
     templates:
       - charm-unit-jobs-py38
-      - charm-unit-jobs-py39
+      - charm-unit-jobs-py310
     check:
       jobs:
         # migrate-ovn tests fail on wallaby and above due to:
@@ -25,7 +25,8 @@
       - charm-build
       - osci-lint
       - tox-py38
-      - tox-py39
+      - name: tox-py310
+        soft: true
     vars:
       tox_extra_args: migrate-ovn:focal-xena-dvr-snat
 - job:
