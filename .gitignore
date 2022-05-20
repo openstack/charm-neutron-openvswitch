@@ -13,3 +13,4 @@ func-results.json
 __pycache__
 joined-string
 .idea
+*.charm
