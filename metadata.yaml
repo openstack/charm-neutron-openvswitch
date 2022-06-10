@@ -17,8 +17,8 @@ description: |
 tags:
 - openstack
 series:
-- focal
 - jammy
+- kinetic
 extra-bindings:
   data:
 provides:

@@ -1,52 +1,9 @@
 - project:
     templates:
-      - charm-unit-jobs-py38
       - charm-unit-jobs-py310
-    check:
-      jobs:
-        # migrate-ovn tests fail on wallaby and above due to:
-        # https://bugs.launchpad.net/charm-neutron-openvswitch/+bug/1951856
-        - migrate-ovn-focal-xena-dvr-snat
-        - migrate-ovn-impish-xena-dvr-snat:
-            voting: false
-        - migrate-ovn-focal-yoga-dvr-snat:
-            voting: false
-        - migrate-ovn-jammy-yoga-dvr-snat:
-            voting: false
+      - charm-zed-functional-jobs
     vars:
       needs_charm_build: true
       charm_build_name: neutron-openvswitch
       build_type: charmcraft
-
-- job:
-    name: migrate-ovn-focal-xena-dvr-snat
-    parent: func-target
-    dependencies:
-      - charm-build
-      - osci-lint
-      - tox-py38
-      - name: tox-py310
-        soft: true
-    vars:
-      tox_extra_args: migrate-ovn:focal-xena-dvr-snat
-- job:
-    name: migrate-ovn-focal-yoga-dvr-snat
-    parent: func-target
-    dependencies:
-      - migrate-ovn-focal-xena-dvr-snat
-    vars:
-      tox_extra_args: migrate-ovn:focal-yoga-dvr-snat
-- job:
-    name: migrate-ovn-impish-xena-dvr-snat
-    parent: func-target
-    dependencies:
-      - migrate-ovn-focal-xena-dvr-snat
-    vars:
-      tox_extra_args: migrate-ovn:impish-xena-dvr-snat
-- job:
-    name: migrate-ovn-jammy-yoga-dvr-snat
-    parent: func-target
-    dependencies:
-      - migrate-ovn-focal-xena-dvr-snat
-    vars:
-      tox_extra_args: migrate-ovn:jammy-yoga-dvr-snat
+      charmcraft_channel: 2.0/stable

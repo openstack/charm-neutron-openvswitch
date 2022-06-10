@@ -74,9 +74,10 @@ applications:
       neutron-security-groups: true
       openstack-origin: *openstack-origin
       enable-dvr: True
+      enable-qos: True
     to:
       - '4'
-    channel: yoga/edge
+    channel: latest/edge
   keystone:
     charm: ch:keystone
     num_units: 1
@@ -84,7 +85,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '5'
-    channel: yoga/edge
+    channel: latest/edge
   glance:
     charm: ch:glance
     num_units: 1
@@ -92,7 +93,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '6'
-    channel: yoga/edge
+    channel: latest/edge
   neutron-openvswitch:
     charm: ../../neutron-openvswitch.charm
     options:
@@ -107,7 +108,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '7'
-    channel: yoga/edge
+    channel: latest/edge
   nova-compute:
     charm: ch:nova-compute
     num_units: 2
@@ -120,7 +121,7 @@ applications:
     to:
       - '8'
       - '9'
-    channel: yoga/edge
+    channel: latest/edge
   placement:
     charm: ch:placement
     num_units: 1
@@ -128,7 +129,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '10'
-    channel: yoga/edge
+    channel: latest/edge
   vault-mysql-router:
     charm: ch:mysql-router
     channel: latest/edge
@@ -148,7 +149,7 @@ applications:
     channel: latest/edge
   neutron-api-plugin-ovn:
     charm: ch:neutron-api-plugin-ovn
-    channel: yoga/edge
+    channel: latest/edge
   ovn-chassis:
     charm: ch:ovn-chassis
     options:
