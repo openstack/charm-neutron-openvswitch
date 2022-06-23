@@ -1,3 +1,5 @@
+local_overlay_enabled: False
+
 variables:
   openstack-origin: &openstack-origin distro
 
@@ -20,21 +22,23 @@ machines:
 # time, given that machine "0" comes up way before machine "7"
 applications:
   percona-cluster:
-    charm: cs:~openstack-charmers/percona-cluster
+    charm: ch:percona-cluster
     num_units: 1
     options:
       source: *openstack-origin
     to:
       - '0'
+    channel: 5.7/edge
   rabbitmq-server:
-    charm: cs:~openstack-charmers/rabbitmq-server
+    charm: ch:rabbitmq-server
     num_units: 1
     options:
       source: *openstack-origin
     to:
       - '1'
+    channel: 3.6/edge
   neutron-api:
-    charm: cs:~openstack-charmers/neutron-api
+    charm: ch:neutron-api
     series: *series
     num_units: 1
     options:
@@ -46,36 +50,40 @@ applications:
       enable-dvr: True
     to:
       - '2'
+    channel: train/edge
   keystone:
-    charm: cs:~openstack-charmers/keystone
+    charm: ch:keystone
     num_units: 1
     options:
       openstack-origin: *openstack-origin
     to:
       - '3'
+    channel: train/edge
   glance:
-    charm: cs:~openstack-charmers/glance
+    charm: ch:glance
     num_units: 1
     options:
       openstack-origin: *openstack-origin
     to:
       - '4'
+    channel: train/edge
   neutron-openvswitch:
-    charm: ../../../neutron-openvswitch
+    charm: ../../neutron-openvswitch.charm
     options:
       use-dvr-snat: True
       bridge-mappings: physnet1:br-ex
       enable-local-dhcp-and-metadata: True
   nova-cloud-controller:
-    charm: cs:~openstack-charmers/nova-cloud-controller
+    charm: ch:nova-cloud-controller
     num_units: 1
     options:
       network-manager: Neutron
       openstack-origin: *openstack-origin
     to:
       - '5'
+    channel: train/edge
   nova-compute:
-    charm: cs:~openstack-charmers/nova-compute
+    charm: ch:nova-compute
     num_units: 2
     options:
       config-flags: default_ephemeral_format=ext4
@@ -86,6 +94,7 @@ applications:
     to:
       - '6'
       - '7'
+    channel: train/edge
 relations:
   - - 'neutron-api:shared-db'
     - 'percona-cluster:shared-db'
