@@ -17,9 +17,9 @@ USE_SRIOV=`config-get enable-sriov`
 USE_HW_OFFLOAD=`config-get enable-hardware-offload`
 NETWORKING_TOOLS_PPA=`config-get networking-tools-source`
 
-if [[ $NETWORKING_TOOLS_PPA ]] && \
+if [[ "$NETWORKING_TOOLS_PPA" ]] && \
    [[ $USE_DPDK == "True" || $USE_SRIOV == "True" || $USE_HW_OFFLOAD == "True" ]]; then
-    apt-add-repository --yes $NETWORKING_TOOLS_PPA
+    apt-add-repository --yes "$NETWORKING_TOOLS_PPA"
     apt-get update
     check_and_install sriov-netplan-shim
 fi
