@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import uuid
+import shutil
 
 from copy import deepcopy
 
@@ -41,6 +43,7 @@ from charmhelpers.core.hookenv import (
     log,
     relation_set,
     relation_ids,
+    charm_dir,
 )
 
 from charmhelpers.core.sysctl import create as create_sysctl
@@ -50,6 +53,8 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.core.unitdata import kv
+from charmhelpers.fetch import apt_install
+from charmhelpers.contrib.charmsupport import nrpe
 
 from neutron_ovs_utils import (
     DHCP_PACKAGES,
@@ -62,6 +67,7 @@ from neutron_ovs_utils import (
     get_shared_secret,
     register_configs,
     restart_map,
+    services,
     use_dvr,
     use_l3ha,
     enable_nova_metadata,
@@ -178,6 +184,8 @@ def config_changed(check_deferred_restarts=True):
             relation_id=rid,
             request_restart=request_nova_compute_restart)
 
+    update_nrpe_config()
+
 
 @hooks.hook('neutron-plugin-api-relation-changed')
 # NOTE(fnordahl): we need to act immediately to changes to OVS_DEFAULT in-line
@@ -285,6 +293,47 @@ def post_series_upgrade():
     log("Running complete series upgrade hook", "INFO")
     series_upgrade_complete(
         resume_unit_helper, CONFIGS)
+
+
+def install_nrpe_cron():
+    src = os.path.join(charm_dir(), "files", "ovs_vsctl", "cron_ovs_vsctl.sh")
+    dst = shutil.copy(src, "/usr/local/lib/nagios/plugins/")
+    os.chmod(dst, 0o100755)
+    os.chown(dst, uid=0, gid=0)
+
+    cronjob_line = "3 * * * * root {cmd}\n".format(cmd=dst)
+    crond_file = "/etc/cron.d/neutron_openvswitch_ovs_vsctl"
+    with open(crond_file, "w") as crond_fd:
+        crond_fd.write(cronjob_line)
+    return dst
+
+
+def install_nrpe_plugin():
+    src = os.path.join(charm_dir(), "files", "ovs_vsctl", "check_ovs_vsctl.py")
+    dst = shutil.copy(src, "/usr/local/lib/nagios/plugins")
+    os.chmod(dst, 0o100755)
+    os.chown(dst, uid=0, gid=0)
+    return dst
+
+
+@hooks.hook('nrpe-external-master-relation-joined',
+            'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    # python-dbus is used by check_upstart_job
+    apt_install('python-dbus')
+    hostname = nrpe.get_nagios_hostname()
+    current_unit = nrpe.get_nagios_unit_name()
+    nrpe_setup = nrpe.NRPE(hostname=hostname)
+    nrpe.copy_nrpe_checks()
+    nrpe.add_init_service_checks(nrpe_setup, services(), current_unit)
+    install_nrpe_cron()
+    cmd = install_nrpe_plugin()
+    nrpe_setup.add_check(
+        shortname="ovs_vsctl",
+        description="Check ovs-vsctl list-br for predictable operation.",
+        check_cmd=cmd
+    )
+    nrpe_setup.write()
 
 
 @hooks.hook('update-status')

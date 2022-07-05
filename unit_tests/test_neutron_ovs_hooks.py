@@ -53,6 +53,7 @@ TO_PATCH = [
     'determine_purge_packages',
     'is_container',
     'is_hook_allowed',
+    'update_nrpe_config',
 ]
 NEUTRON_CONF_DIR = "/etc/neutron"
 
