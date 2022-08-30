@@ -246,7 +246,8 @@ DPDK_RESOURCE_MAP = OrderedDict([
 SRIOV_RESOURCE_MAP = OrderedDict([
     (NEUTRON_SRIOV_AGENT_CONF, {
         'services': ['neutron-sriov-agent'],
-        'contexts': [neutron_ovs_context.OVSPluginContext()],
+        'contexts': [neutron_ovs_context.OVSPluginContext(),
+                     context.NeutronAPIContext()],
     }),
 ])
 
