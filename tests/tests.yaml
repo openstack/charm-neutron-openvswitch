@@ -6,28 +6,23 @@ charm_name: neutron-openvswitch
 # OVS to OVN.
 
 smoke_bundles:
-  - migrate-ovn: focal-xena-dvr-snat
+  - jammy-yoga
 
 gate_bundles:
-  - migrate-ovn: focal-xena-dvr-snat
-  - migrate-ovn: impish-xena-dvr-snat
+  - jammy-yoga
 
 dev_bundles:
-  - migrate-ovn: focal-yoga-dvr-snat
-  - migrate-ovn: jammy-yoga-dvr-snat
+  - jammy-yoga
+  - jammy-zed
+  - kinetic-zed
 
 configure:
+  - zaza.openstack.charm_tests.vault.setup.auto_initialize_no_validation
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
   - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
   - zaza.openstack.charm_tests.nova.setup.create_flavors
   - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
-  - migrate-ovn:
-    - zaza.openstack.charm_tests.vault.setup.auto_initialize_no_validation
-    - zaza.openstack.charm_tests.glance.setup.add_lts_image
-    - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
-    - zaza.openstack.charm_tests.nova.setup.create_flavors
-    - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
-    - zaza.openstack.charm_tests.ovn.setup.pre_migration_configuration
+  - zaza.openstack.charm_tests.ovn.setup.pre_migration_configuration
 
 configure_options:
   configure_gateway_ext_port_use_juju_wait: false
@@ -52,21 +47,14 @@ target_deploy_status:
 tests:
   - zaza.openstack.charm_tests.neutron.tests.NeutronOVSDeferredRestartTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
-  - zaza.openstack.charm_tests.neutron.tests.NeutronOpenvSwitchTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
   - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
-  - migrate-ovn:
-    - zaza.openstack.charm_tests.neutron.tests.NeutronOVSDeferredRestartTest
-    - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
-    - zaza.openstack.charm_tests.neutron.tests.NeutronOvsVsctlTest
-    - zaza.openstack.charm_tests.neutron.tests.NeutronBridgePortMappingTest
-    - zaza.openstack.charm_tests.ovn.tests.OVSOVNMigrationTest
-    - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
+  - zaza.openstack.charm_tests.ovn.tests.OVSOVNMigrationTest
+  - zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest
 tests_options:
   # NOTE: This allows us to run the NeutronNetworkingTest multiple times while
   # reusing the instances created for the first run. This both saves time and
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
-    - impish-xena-dvr-snat
-    - jammy-yoga-dvr-snat
+    - kinetic-zed-dvr-snat
