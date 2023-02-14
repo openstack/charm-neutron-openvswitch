@@ -6,15 +6,15 @@ charm_name: neutron-openvswitch
 # OVS to OVN.
 
 smoke_bundles:
-  - jammy-yoga
+  - jammy-zed
 
 gate_bundles:
-  - jammy-yoga
+  - jammy-zed
 
 dev_bundles:
-  - jammy-yoga
-  - jammy-zed
+  - jammy-antelope
   - kinetic-zed
+  - lunar-antelope
 
 configure:
   - zaza.openstack.charm_tests.vault.setup.auto_initialize_no_validation
@@ -58,3 +58,4 @@ tests_options:
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
     - kinetic-zed-dvr-snat
+    - lunar-antelope-dvr-snat
