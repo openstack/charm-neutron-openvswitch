@@ -28,22 +28,22 @@ machines:
 applications:
   keystone-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   nova-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   glance-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   neutron-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   placement-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   vault-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   mysql-innodb-cluster:
     charm: ch:mysql-innodb-cluster
     num_units: 3
@@ -53,13 +53,13 @@ applications:
       - '0'
       - '1'
       - '2'
-    channel: latest/edge
+    channel: 8.0/edge
   rabbitmq-server:
     charm: ch:rabbitmq-server
     num_units: 1
     to:
       - '3'
-    channel: latest/edge
+    channel: 3.9/edge
   neutron-api:
     charm: ch:neutron-api
     series: *series
@@ -75,7 +75,7 @@ applications:
       enable-qos: True
     to:
       - '4'
-    channel: latest/edge
+    channel: 2023.1/edge
   keystone:
     charm: ch:keystone
     num_units: 1
@@ -83,7 +83,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '5'
-    channel: latest/edge
+    channel: 2023.1/edge
   glance:
     charm: ch:glance
     num_units: 1
@@ -91,7 +91,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '6'
-    channel: latest/edge
+    channel: 2023.1/edge
   neutron-openvswitch:
     charm: ../../neutron-openvswitch.charm
     options:
@@ -106,7 +106,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '7'
-    channel: latest/edge
+    channel: 2023.1/edge
   nova-compute:
     charm: ch:nova-compute
     num_units: 2
@@ -119,7 +119,7 @@ applications:
     to:
       - '8'
       - '9'
-    channel: latest/edge
+    channel: 2023.1/edge
   placement:
     charm: ch:placement
     num_units: 1
@@ -127,16 +127,16 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '10'
-    channel: latest/edge
+    channel: 2023.1/edge
   vault-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   vault:
     charm: ch:vault
     num_units: 1
     to:
       - '11'
-    channel: latest/edge
+    channel: 1.8/edge
   ovn-central:
     charm: ch:ovn-central
     num_units: 3
@@ -144,16 +144,16 @@ applications:
       source: *openstack-origin
     to:
       - '12'
-    channel: latest/edge
+    channel: 22.03/edge
   neutron-api-plugin-ovn:
     charm: ch:neutron-api-plugin-ovn
-    channel: latest/edge
+    channel: 2023.1/edge
   ovn-chassis:
     charm: ch:ovn-chassis
     options:
       # start new units paused to allow unit by unit OVS to OVN migration
       new-units-paused: true
-    channel: latest/edge
+    channel: 22.03/edge
 relations:
   - - 'neutron-api:amqp'
     - 'rabbitmq-server:amqp'
