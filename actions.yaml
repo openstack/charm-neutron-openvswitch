@@ -24,7 +24,7 @@ pause:
         .
         NOTE: Pausing neutron-openvswitch does not stop the openvswitch-switch service.
 resume:
-    descrpition: |
+    description: |
         Resume the neutron-openvswitch unit.  This action will start neutron-openvswitch services.
 restart-services:
   description: |
@@ -51,5 +51,5 @@ run-deferred-hooks:
     .
     NOTE: Service will be restarted as needed irrespective of enable-auto-restarts
 show-deferred-events:
-    descrpition: |
+    description: |
         Show the outstanding restarts
