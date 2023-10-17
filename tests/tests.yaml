@@ -13,7 +13,6 @@ gate_bundles:
 
 dev_bundles:
   - jammy-bobcat
-  - lunar-antelope
   - mantic-bobcat
 
 configure:
@@ -57,5 +56,4 @@ tests_options:
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
-    - lunar-antelope-dvr-snat
     - mantic-bobcat-dvr-snat
