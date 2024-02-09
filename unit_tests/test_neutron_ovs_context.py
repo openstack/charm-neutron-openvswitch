@@ -198,6 +198,7 @@ class OVSPluginContextTest(CharmTestCase):
         }
         self.assertEqual(expect, napi_ctxt())
 
+    @patch.object(context, 'is_container')
     @patch.object(charmhelpers.contrib.openstack.utils,
                   'get_os_codename_package')
     @patch.object(charmhelpers.contrib.openstack.context, 'relation_get')
@@ -218,7 +219,8 @@ class OVSPluginContextTest(CharmTestCase):
                                                         _local_address,
                                                         _config, _runits,
                                                         _rids, _rget,
-                                                        _get_os_cdnm_pkg):
+                                                        _get_os_cdnm_pkg,
+                                                        _is_container):
         def mock_npa(plugin, section, manager):
             if section == "driver":
                 return "neutron.randomdriver"
@@ -243,6 +245,7 @@ class OVSPluginContextTest(CharmTestCase):
         }
         _rget.side_effect = lambda *args, **kwargs: rdata
         self.get_host_ip.return_value = '127.0.0.15'
+        _is_container.return_value = False
         napi_ctxt = context.OVSPluginContext()
         expect = {
             'distributed_routing': False,

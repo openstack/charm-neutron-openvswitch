@@ -16,11 +16,9 @@ description: |
   L2 connectivity on nova-compute services.
 docs: https://discourse.charmhub.io/t/neutron-openvswitch-docs-index/11001
 tags:
-- openstack
+  - openstack
 series:
-- jammy
-- lunar
-- mantic
+  - jammy
 extra-bindings:
   data:
 provides:

@@ -6,16 +6,13 @@ charm_name: neutron-openvswitch
 # OVS to OVN.
 
 smoke_bundles:
-  - jammy-antelope
-
+  - jammy-caracal
 gate_bundles:
   - jammy-antelope
-
-dev_bundles:
   - jammy-bobcat
-  - lunar-antelope
-  - mantic-bobcat
-
+  - jammy-caracal
+dev_bundles:
+  - noble-caracal
 configure:
   - zaza.openstack.charm_tests.vault.setup.auto_initialize_no_validation
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
@@ -57,5 +54,4 @@ tests_options:
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
   force_deploy:
-    - lunar-antelope-dvr-snat
-    - mantic-bobcat-dvr-snat
+    - noble-caracal
