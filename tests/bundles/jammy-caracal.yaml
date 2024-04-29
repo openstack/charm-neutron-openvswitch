@@ -141,7 +141,7 @@ applications:
       source: *openstack-origin
     to:
       - '12'
-    channel: latest/edge
+    channel: 24.03/edge
   neutron-api-plugin-ovn:
     charm: ch:neutron-api-plugin-ovn
     channel: 2024.1/edge
@@ -150,7 +150,8 @@ applications:
     options:
       # start new units paused to allow unit by unit OVS to OVN migration
       new-units-paused: true
-    channel: latest/edge
+      prefer-chassis-as-gw: True
+    channel: 24.03/edge
 relations:
   - - 'neutron-api:amqp'
     - 'rabbitmq-server:amqp'
