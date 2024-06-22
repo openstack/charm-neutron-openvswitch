@@ -6,11 +6,9 @@ charm_name: neutron-openvswitch
 # OVS to OVN.
 
 smoke_bundles:
-  - jammy-caracal
+  - noble-caracal
 gate_bundles:
-  - jammy-antelope
-  - jammy-bobcat
-  - jammy-caracal
+  - noble-caracal
 dev_bundles:
   - noble-caracal
 configure:
@@ -53,5 +51,3 @@ tests_options:
   # reusing the instances created for the first run. This both saves time and
   # allows verifying instances survive a SDN migration.
   zaza.openstack.charm_tests.neutron.tests.NeutronNetworkingTest.test_instances_have_networking.run_resource_cleanup: false
-  force_deploy:
-    - noble-caracal
