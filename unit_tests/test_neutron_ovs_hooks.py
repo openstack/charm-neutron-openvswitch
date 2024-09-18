@@ -53,6 +53,7 @@ TO_PATCH = [
     'determine_purge_packages',
     'is_container',
     'is_hook_allowed',
+    'configure_iptables_rules',
 ]
 NEUTRON_CONF_DIR = "/etc/neutron"
 
@@ -314,3 +315,7 @@ class NeutronOVSHooksTests(CharmTestCase):
         self.CONFIGS.complete_contexts.return_value = ['amqp']
         self._call_hook('amqp-relation-departed')
         self.CONFIGS.write_all.assert_called_once()
+
+    def test_start(self):
+        self._call_hook('start')
+        self.configure_iptables_rules.assert_called_once()
