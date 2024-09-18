@@ -826,6 +826,9 @@ def configure_ovs():
     if not init_is_systemd():
         service_restart('os-charm-phy-nic-mtu')
 
+    # Configure iptables rules to not track GRE/VXLAN connections
+    configure_iptables_rules()
+
 
 def _get_interfaces_from_mappings(sriov_mappings):
     """Returns list of interfaces based on sriov-device-mappings"""
@@ -1033,3 +1036,69 @@ def _pause_resume_helper(f, configs, exclude_services=None):
         exclude_services = []
     f(assess_status_func(configs, exclude_services),
       services=services(exclude_services), ports=None)
+
+
+def _run(*args):
+    """
+    Run external process and return result.
+
+    :param *args: Command name and arguments.
+    :type *args: str
+    :returns: Data about completed process
+    :rtype: subprocess.CompletedProcess
+    :raises: subprocess.CalledProcessError
+    """
+    cp = subprocess.run(
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True,
+        universal_newlines=True)
+    log(cp,)
+    return cp
+
+
+def configure_iptables_rules():
+    """
+    Configure `iptables` NOTRACK rules for GRE/VXLAN traffic in nf_conntrack
+
+    The GRE/VXLAN traffic has randomized source ports[1][2], which
+    plays badly with nf_conntrack in a busy cloud environment. Having
+    randomized source ports change the five-tuple info, resulting to an
+    increase in unique connections that nf_conntrack tracks. That
+    inevitably leads to a full nf_conntrack table and connections to be
+    dropped.
+
+    NOTRACK rules allow nf_conntrack to ignore the said traffic. UDP
+    flows with destination port 4754 (GRE), and 4789 (VXLAN) will not be
+    tracked by nf_conntrack while rules are in effect.
+
+    [1]:(https://www.rfc-editor.org/rfc/rfc8086.html#section-3.2)
+    [2]:(https://www.rfc-editor.org/rfc/rfc7348.html#section-5)
+    """
+    log("Configuring iptables rules")
+
+    def append_notrack_rule(chain_name, port):
+        """
+        Append a iptables NOTRACK rule to a chain in raw table.
+
+        :param str chain_name: Chain to append
+        """
+        args = ['iptables', '-t', 'raw', '-C', chain_name, '-p', 'udp',
+                '--dport', port, '-j', 'NOTRACK']
+        try:
+            _run(*args)
+            log("Rule `{}` append to `{}` chain skipped (already exists)"
+                .format(' '.join(args), chain_name))
+        except subprocess.CalledProcessError as cpe:
+            if cpe.returncode != 1:
+                raise
+
+            # Append command is exactly the same with check
+            # except the check (-C) is replaced with append
+            # (-A)
+            args[3] = '-A'
+            _run(*args)
+            log("Rule `{}` appended to `{}` chain"
+                .format(' '.join(args), chain_name))
+
+    for _chain in ('PREROUTING', 'OUTPUT'):
+        for port in ('4754', '4789'):
+            append_notrack_rule(_chain, port)
