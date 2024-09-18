@@ -590,13 +590,15 @@ class TestNeutronOVSUtils(CharmTestCase):
             self.assertTrue(expect[item] == _restart_map[item])
         self.assertEqual(len(_restart_map.keys()), 3)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch('charmhelpers.contrib.openstack.context.list_nics',
            return_value=['eth0'])
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_ovs_data_port(
-            self, mock_config, _charm_name, _use_dvr, _nics):
+            self, mock_config, _charm_name, _use_dvr, _nics, mock_subprocess):
         _use_dvr.return_value = False
         _charm_name.return_value = "neutron-openvswitch"
         self.is_linuxbridge_interface.return_value = False
@@ -643,13 +645,15 @@ class TestNeutronOVSUtils(CharmTestCase):
         # Not called since we have a bogus bridge in data-ports
         self.assertFalse(self.add_bridge_port.called)
 
+    @patch.object(nutils, 'configure_iptables_rules', return_value=None)
     @patch('charmhelpers.contrib.openstack.context.list_nics',
            return_value=['eth0', 'br-juju'])
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_data_port_with_bridge(
-            self, mock_config, _use_dvr, _charm_name, _nics):
+            self, mock_config, _use_dvr,
+            _charm_name, _nics, mock_conf_iptables):
         _use_dvr.return_value = False
         _charm_name.return_value = "neutron-openvswitch"
         self.is_linuxbridge_interface.return_value = True
@@ -681,11 +685,13 @@ class TestNeutronOVSUtils(CharmTestCase):
             'config is deprecated for removal after 21.10 release of OpenStack'
             ' charms.', level='WARNING')
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_starts_service_if_required(
-            self, mock_config, _charm_name, _use_dvr):
+            self, mock_config, _charm_name, _use_dvr, mock_subprocess):
         _use_dvr.return_value = False
         _charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -694,11 +700,13 @@ class TestNeutronOVSUtils(CharmTestCase):
         nutils.configure_ovs()
         self.assertTrue(self.full_restart.called)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_doesnt_restart_service(
-            self, mock_config, _charm_name, _use_dvr):
+            self, mock_config, _charm_name, _use_dvr, mock_subprocess):
         _use_dvr.return_value = False
         _charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -707,11 +715,13 @@ class TestNeutronOVSUtils(CharmTestCase):
         nutils.configure_ovs()
         self.assertFalse(self.full_restart.called)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_ovs_ext_port(
-            self, mock_config, _charm_name, _use_dvr):
+            self, mock_config, _charm_name, _use_dvr, mock_subprocess):
         _use_dvr.return_value = True
         _charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -940,6 +950,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                              'charm-neutron-openvswitch': br[2]}},
                          linkup=False, promisc=None)], any_order=True)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_hw_offload', return_value=False)
     @patch.object(nutils, 'parse_bridge_mappings')
     @patch.object(nutils, 'parse_data_port_mappings')
@@ -955,7 +967,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                                 _NeutronAPIContext,
                                 _parse_data_port_mappings,
                                 _parse_bridge_mappings,
-                                _use_hw_offload):
+                                _use_hw_offload,
+                                _mock_subprocess):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr, _charm_name,
@@ -966,6 +979,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                                             _late_init=False,
                                             _test_bonds=False)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_hw_offload', return_value=False)
     @patch.object(nutils, 'parse_bridge_mappings')
     @patch.object(nutils, 'parse_data_port_mappings')
@@ -982,7 +997,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                                           _NeutronAPIContext,
                                           _parse_data_port_mappings,
                                           _parse_bridge_mappings,
-                                          _use_hw_offload):
+                                          _use_hw_offload,
+                                          _mock_subprocess):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr, _charm_name,
@@ -993,6 +1009,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                                             _late_init=True,
                                             _test_bonds=False)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_hw_offload', return_value=False)
     @patch.object(nutils, 'parse_bridge_mappings')
     @patch.object(nutils, 'parse_data_port_mappings')
@@ -1009,7 +1027,8 @@ class TestNeutronOVSUtils(CharmTestCase):
                                                 _NeutronAPIContext,
                                                 _parse_data_port_mappings,
                                                 _parse_bridge_mappings,
-                                                _use_hw_offload):
+                                                _use_hw_offload,
+                                                _mock_subprocess):
         _NeutronAPIContext.return_value = DummyContext(
             return_value={'global_physnet_mtu': 1500})
         return self._run_configure_ovs_dpdk(mock_config, _use_dvr, _charm_name,
@@ -1020,11 +1039,13 @@ class TestNeutronOVSUtils(CharmTestCase):
                                             _late_init=True,
                                             _test_bonds=True)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_enable_ipfix(self, mock_config, mock_charm_name,
-                                        mock_use_dvr):
+                                        mock_use_dvr, mock_subprocess):
         mock_use_dvr.return_value = False
         mock_charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -1036,11 +1057,13 @@ class TestNeutronOVSUtils(CharmTestCase):
             call('br-ex', '127.0.0.1:80'),
         ])
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_ensure_ext_port_ignored(
-            self, mock_config, mock_charm_name, mock_use_dvr):
+            self, mock_config, mock_charm_name, mock_use_dvr, mock_subprocess):
         mock_use_dvr.return_value = True
         mock_charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -1056,11 +1079,13 @@ class TestNeutronOVSUtils(CharmTestCase):
         self.assertNotIn(call('br-ex', 'p0', ifdata=ANY, portdata=ANY),
                          self.add_bridge_port.call_args_list)
 
+    @patch.object(nutils, 'subprocess',
+                  return_value=subprocess.CompletedProcess("dummy-args", 0))
     @patch.object(nutils, 'use_dvr')
     @patch('charmhelpers.contrib.network.ovs.charm_name')
     @patch('charmhelpers.contrib.openstack.context.config')
     def test_configure_ovs_ensure_ext_port_used(
-            self, mock_config, mock_charm_name, mock_use_dvr):
+            self, mock_config, mock_charm_name, mock_use_dvr, mock_subprocess):
         mock_use_dvr.return_value = True
         mock_charm_name.return_value = "neutron-openvswitch"
         mock_config.side_effect = self.test_config.get
@@ -1348,3 +1373,57 @@ class TestNeutronOVSUtils(CharmTestCase):
             call('other_config:max-idle', '30000'),
         ])
         self.service_restart.assert_not_called()
+
+    @patch.object(nutils, '_run')
+    def test_configure_iptables_rules_not_exist(self, mock_run):
+        # Confirm that iptables rules are being added when it is absent
+        # in the environment
+
+        def dummy_run(*args):
+            if args[3] == '-C':
+                raise subprocess.CalledProcessError(1, "dummy")
+            return subprocess.CompletedProcess("dummy-args", 0)
+
+        mock_run.side_effect = dummy_run
+        nutils.configure_iptables_rules()
+        mock_run.assert_has_calls([
+            call('iptables', '-t', 'raw', '-C', 'PREROUTING',
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-A', 'PREROUTING',
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', 'PREROUTING',
+                 '-p', 'udp', '--dport', '4789', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-A', 'PREROUTING',
+                 '-p', 'udp', '--dport', '4789', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', 'OUTPUT',
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-A', 'OUTPUT',
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', 'OUTPUT',
+                 '-p', 'udp', '--dport', '4789', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-A', 'OUTPUT',
+                 '-p', 'udp', '--dport', '4789', '-j', 'NOTRACK')
+        ], any_order=False)
+        self.assertEqual(8, mock_run.call_count)
+
+    @patch.object(nutils, '_run')
+    def test_configure_iptables_rules_already_exist(self, mock_run):
+        # Confirm that iptables rules are not being added when rules
+        # already present in the environment
+
+        def dummy_run(*args):
+            return subprocess.CompletedProcess("dummy-args", 0)
+
+        mock_run.side_effect = dummy_run
+        nutils.configure_iptables_rules()
+        mock_run.assert_has_calls([
+            call('iptables', '-t', 'raw', '-C', "PREROUTING",
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', "PREROUTING", '-p',
+                 'udp', '--dport', '4789', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', "OUTPUT",
+                 '-p', 'udp', '--dport', '4754', '-j', 'NOTRACK'),
+            call('iptables', '-t', 'raw', '-C', "OUTPUT", '-p',
+                 'udp', '--dport', '4789', '-j', 'NOTRACK'),
+        ])
+        self.assertEqual(4, mock_run.call_count)
