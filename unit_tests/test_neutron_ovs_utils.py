@@ -1261,43 +1261,43 @@ class TestNeutronOVSUtils(CharmTestCase):
     def test_use_dvr(self, _is_container, _NeutronAPIContext):
         _is_container.return_value = False
         _NeutronAPIContext()().get.return_value = True
-        self.assertEquals(nutils.use_dvr(), True)
+        self.assertTrue(nutils.use_dvr())
         _is_container.return_value = True
-        self.assertEquals(nutils.use_dvr(), False)
+        self.assertFalse(nutils.use_dvr())
 
     @patch.object(nutils.context, 'NeutronAPIContext')
     @patch.object(nutils, 'is_container')
     def test_use_l3ha(self, _is_container, _NeutronAPIContext):
         _is_container.return_value = False
         _NeutronAPIContext()().get.return_value = True
-        self.assertEquals(nutils.use_l3ha(), True)
+        self.assertTrue(nutils.use_l3ha())
         _is_container.return_value = True
-        self.assertEquals(nutils.use_l3ha(), False)
+        self.assertFalse(nutils.use_l3ha())
 
     @patch.object(nutils.context, 'NeutronAPIContext')
     @patch.object(nutils, 'is_container')
     def test_enable_nova_metadata(self, _is_container, _NeutronAPIContext):
         _is_container.return_value = False
         _NeutronAPIContext()().get.return_value = True
-        self.assertEquals(nutils.enable_nova_metadata(), True)
+        self.assertTrue(nutils.enable_nova_metadata())
         _is_container.return_value = True
-        self.assertEquals(nutils.enable_nova_metadata(), False)
+        self.assertFalse(nutils.enable_nova_metadata())
 
     @patch.object(nutils, 'config')
     @patch.object(nutils, 'is_container')
     def test_enable_local_dhcp(self, _is_container, _config):
         _is_container.return_value = False
         _config.return_value = True
-        self.assertEquals(nutils.enable_local_dhcp(), True)
+        self.assertTrue(nutils.enable_local_dhcp())
         _is_container.return_value = True
-        self.assertEquals(nutils.enable_local_dhcp(), False)
+        self.assertFalse(nutils.enable_local_dhcp())
 
     @patch.object(nutils, 'kv')
     def test_use_fqdn_hint(self, _kv):
         _kv().get.return_value = False
-        self.assertEquals(nutils.use_fqdn_hint(), False)
+        self.assertFalse(nutils.use_fqdn_hint())
         _kv().get.return_value = True
-        self.assertEquals(nutils.use_fqdn_hint(), True)
+        self.assertTrue(nutils.use_fqdn_hint())
 
     def test_use_hw_offload_rocky(self):
         self.os_release.return_value = 'rocky'
