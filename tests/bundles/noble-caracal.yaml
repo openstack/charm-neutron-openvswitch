@@ -150,6 +150,7 @@ applications:
     options:
       # start new units paused to allow unit by unit OVS to OVN migration
       new-units-paused: true
+      prefer-chassis-as-gw: true
     channel: latest/edge
 relations:
   - - 'neutron-api:amqp'
