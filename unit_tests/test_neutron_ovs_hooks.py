@@ -308,8 +308,9 @@ class NeutronOVSHooksTests(CharmTestCase):
     def test_amqp_changed(self):
         self.CONFIGS.complete_contexts.return_value = ['amqp']
         self._call_hook('amqp-relation-changed')
-        self.assertTrue(self.CONFIGS.write.called_with(NEUTRON_CONF))
+        self.CONFIGS.write_all.assert_called_once()
 
     def test_amqp_departed(self):
+        self.CONFIGS.complete_contexts.return_value = ['amqp']
         self._call_hook('amqp-relation-departed')
-        self.assertTrue(self.CONFIGS.write.called_with(NEUTRON_CONF))
+        self.CONFIGS.write_all.assert_called_once()
