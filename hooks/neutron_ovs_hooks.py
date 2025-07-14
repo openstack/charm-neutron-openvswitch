@@ -77,6 +77,7 @@ from neutron_ovs_utils import (
     purge_sriov_systemd_files,
     use_fqdn_hint,
     deferrable_services,
+    configure_iptables_rules,
 )
 
 hooks = Hooks()
@@ -285,6 +286,13 @@ def post_series_upgrade():
     log("Running complete series upgrade hook", "INFO")
     series_upgrade_complete(
         resume_unit_helper, CONFIGS)
+
+
+@hooks.hook('start')
+def start_charm():
+    # add conntrack related iptables rules upon restart
+    log('Configuring iptables NOTRACK rules for GRE/VXLAN tunnels')
+    configure_iptables_rules()
 
 
 @hooks.hook('update-status')
