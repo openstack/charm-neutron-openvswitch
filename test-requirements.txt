@@ -27,3 +27,5 @@ git+https://opendev.org/openstack/tempest.git#egg=tempest
 
 croniter            # needed for charm-rabbitmq-server unit tests
 psutil
+pip >= 21.0
+setuptools >= 50.0.0
