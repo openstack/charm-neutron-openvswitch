@@ -19,6 +19,7 @@ parts:
       - Makefile
       - metadata.yaml
       - README.md
+      - lxd-profile.yaml
 
 bases:
   - build-on:
