@@ -868,7 +868,7 @@ class TestNeutronOVSUtils(CharmTestCase):
                               'type': 'dpdk',
                               'mtu-request': 1500,
                               'options': {'dpdk-devargs': pci[0]},
-                              'external-ids':{
+                              'external-ids': {
                                   'charm-neutron-openvswitch': br[0]}}}),
                     call(br[1], 'bond1',
                          [_resolve_port_name(pci[1], 1, _late_init)],
@@ -878,11 +878,11 @@ class TestNeutronOVSUtils(CharmTestCase):
                                    'external-ids': {
                                        'charm-neutron-openvswitch': br[1]}},
                          ifdatamap={
-                             _resolve_port_name(pci[1], 1, _late_init):{
+                             _resolve_port_name(pci[1], 1, _late_init): {
                                  'type': 'dpdk',
                                  'mtu-request': 1500,
                                  'options': {'dpdk-devargs': pci[1]},
-                                 'external-ids':{
+                                 'external-ids': {
                                      'charm-neutron-openvswitch': br[1]}}}),
                     call(br[2], 'bond2',
                          [_resolve_port_name(pci[2], 2, _late_init)],
@@ -896,7 +896,7 @@ class TestNeutronOVSUtils(CharmTestCase):
                                  'type': 'dpdk',
                                  'mtu-request': 1500,
                                  'options': {'dpdk-devargs': pci[2]},
-                                 'external-ids':{
+                                 'external-ids': {
                                      'charm-neutron-openvswitch': br[2]}}})],
                 any_order=True)
         else:
@@ -906,7 +906,7 @@ class TestNeutronOVSUtils(CharmTestCase):
                          ifdata={'type': 'dpdk',
                                  'mtu-request': 1500,
                                  'options': {'dpdk-devargs': pci[0]},
-                                 'external-ids':{
+                                 'external-ids': {
                                      'charm-neutron-openvswitch': br[0]}},
                          portdata={'external-ids': {
                              'charm-neutron-openvswitch': br[0]}},
@@ -915,7 +915,7 @@ class TestNeutronOVSUtils(CharmTestCase):
                          ifdata={'type': 'dpdk',
                                  'mtu-request': 1500,
                                  'options': {'dpdk-devargs': pci[1]},
-                                 'external-ids':{
+                                 'external-ids': {
                                      'charm-neutron-openvswitch': br[1]}},
                          portdata={'external-ids': {
                              'charm-neutron-openvswitch': br[1]}},
@@ -924,7 +924,7 @@ class TestNeutronOVSUtils(CharmTestCase):
                          ifdata={'type': 'dpdk',
                                  'mtu-request': 1500,
                                  'options': {'dpdk-devargs': pci[2]},
-                                 'external-ids':{
+                                 'external-ids': {
                                      'charm-neutron-openvswitch': br[2]}},
                          portdata={'external-ids': {
                              'charm-neutron-openvswitch': br[2]}},
