@@ -16,10 +16,10 @@ parts:
       - copyright
       - icon.svg
       - LICENSE
+      - lxd-profile.yaml
       - Makefile
       - metadata.yaml
       - README.md
-      - lxd-profile.yaml
 
 platforms:
   ubuntu@22.04:amd64:
