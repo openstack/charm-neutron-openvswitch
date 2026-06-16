@@ -93,7 +93,7 @@ applications:
       - '6'
     channel: latest/edge
   neutron-openvswitch:
-    charm: ../../neutron-openvswitch.charm
+    charm: ../../neutron-openvswitch_ubuntu@24.04-amd64.charm
     options:
       use-dvr-snat: True
       bridge-mappings: physnet1:br-ex
