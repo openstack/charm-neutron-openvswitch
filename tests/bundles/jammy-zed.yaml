@@ -93,7 +93,7 @@ applications:
       - '6'
     channel: 2023.1/edge
   neutron-openvswitch:
-    charm: ../../neutron-openvswitch.charm
+    charm: ../../neutron-openvswitch_ubuntu@22.04-amd64.charm
     options:
       use-dvr-snat: True
       bridge-mappings: physnet1:br-ex
@@ -144,7 +144,7 @@ applications:
       source: *openstack-origin
     to:
       - '12'
-    channel: 22.03/edge
+    channel: 23.03/edge
   neutron-api-plugin-ovn:
     charm: ch:neutron-api-plugin-ovn
     channel: 2023.1/edge
@@ -153,7 +153,7 @@ applications:
     options:
       # start new units paused to allow unit by unit OVS to OVN migration
       new-units-paused: true
-    channel: 22.03/edge
+    channel: 23.03/edge
 relations:
   - - 'neutron-api:amqp'
     - 'rabbitmq-server:amqp'
